@@ -1,3 +1,4 @@
+import {useDialogFocus} from './use-dialog-focus.js';
 import {terminalChannel} from './terminal-channel.js';
 import {useDraft} from './drafts.js';
 import {DictationButton} from './DictationButton.js';
@@ -8,6 +9,7 @@ import {Terminal} from '@xterm/xterm';import {FitAddon} from '@xterm/addon-fit';
 import {Icon} from './Icon.js';import type {ClaudeSession} from './types.js';
 import {getTranscript} from './api.js';import type {ConversationMessage} from './types.js';
 export function SessionTerminal({session,close,onSessionChange}:{session:ClaudeSession;close:()=>void;onSessionChange:(id:string,title:string)=>void}){
+ const dialog=useRef<HTMLElement>(null);useDialogFocus(dialog);
  const mount=useRef<HTMLDivElement>(null);const [status,setStatus]=useState('Bağlanıyor…');
  const send=useRef<(data:string)=>boolean>(()=>false);const focus=useRef(()=>{});
  const [canWrite,setCanWrite]=useState(false);const [draft,setDraft]=useDraft('session:'+session.id);const [connectionVersion,reconnect]=useState(0);const [history,setHistory]=useState(false);
@@ -37,7 +39,7 @@ export function SessionTerminal({session,close,onSessionChange}:{session:ClaudeS
   const observer=new ResizeObserver(resize);observer.observe(mount.current);
   return()=>{writable=false;send.current=()=>false;focus.current=()=>{};observer.disconnect();input.dispose();ws.close();terminal.dispose();};
  },[session.id,onSessionChange,connectionVersion]);
- return <section className="bb-console" role="dialog" aria-modal="true" aria-label="Claude oturumu"><header><div><small>Claude Code</small><strong>{session.title}</strong></div><button aria-label="Oturum panelini kapat" onClick={close}><Icon name="close"/></button></header>
+ return <section ref={dialog} className="bb-console" role="dialog" aria-modal="true" aria-label="Claude oturumu"><header><div><small>Claude Code</small><strong>{session.title}</strong></div><button aria-label="Oturum panelini kapat" onClick={close}><Icon name="close"/></button></header>
   <nav className="bb-terminal-tabs" aria-label="Konuşma görünümü"><button aria-pressed={!history} onClick={()=>setHistory(false)}>Canlı terminal</button><button aria-pressed={history} onClick={()=>{setHistory(true);void read();}}>Konuşma geçmişi</button></nav>
   <div className="bb-terminal" hidden={history} ref={mount}/>
   {history&&<div className="bb-terminal-history" role="region" aria-label="Kaydırılabilir konuşma geçmişi" tabIndex={0}>{before!==null&&<button disabled={loading} onClick={()=>void read(before)}>Önceki mesajları yükle</button>}{messages.map((m,i)=><article className={`bb-message bb-message-${m.role}`} key={`${m.id}-${i}`}><header><strong>{m.role==='user'?'Sen':'Claude'}</strong>{m.timestamp&&<time>{new Date(m.timestamp).toLocaleString('tr-TR')}</time>}</header><MessageContent text={m.text}/>{m.tools.length>0&&<p>Araçlar: {m.tools.join(', ')}</p>}</article>)}{loading&&<p role="status">Yükleniyor…</p>}{readError&&<p role="alert">{readError}</p>}</div>}
