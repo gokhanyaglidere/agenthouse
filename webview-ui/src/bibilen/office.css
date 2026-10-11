@@ -470,3 +470,5 @@ div:has(>.bb-shell .bb-session-focus)>.bb-native-tool{visibility:hidden}
 .bb-shell input:not([type=range]),.bb-shell select,.bb-shell textarea:not(.xterm-helper-textarea){border-color:#718a78}.bb-shell input::placeholder,.bb-shell textarea:not(.xterm-helper-textarea)::placeholder{color:#b8c6bb}
 .bb-message{line-height:1.7}.bb-terminal-history:focus-visible{outline-offset:-4px}.bb-message-table{max-width:100%}.bb-message :is(pre,code){overflow-wrap:anywhere}
 .bb-menu-items button:focus-visible{outline-offset:-3px}.bb-session-list article{min-width:0}.bb-session-list h2{overflow-wrap:anywhere}
+
+.bb-task-connection{margin-bottom:16px;color:var(--muted);font-size:13px}.bb-task-connection>summary{min-height:44px}.bb-task-connection[open]{padding-bottom:12px;border-bottom:1px solid var(--line)}
