@@ -45,3 +45,11 @@ These are requested changes and reported defects, not completed work. Start with
 - Check furniture orientation, chair-to-desk distance, wall anchoring, functional groups, doors, walkability, private-room permissions and indoor/outdoor boundary.
 - Check room identity without relying on labels, appropriate density, lighting and continuous garden path edges.
 - Verify text across zoom/device scales and actual agent positions. Record remaining defects explicitly.
+
+## First implemented sample
+
+- Wood-framed glass corridor-facing partitions in CEO and meeting rooms. Wall collision footprints and locked CEO door remain intact.
+- CEO visitor corner: two matching armchairs with a shared central table. Revision 117 migrates only untouched default furniture; customized visitor positions are preserved.
+- Room plaques are drawn at display resolution with bounded font size, instead of scaling text baked into a 7px bitmap. Agent labels retain their existing display-resolution rendering.
+- Verified live CEO/meeting views and a closer zoom. 40 UI tests pass, including migration preserving custom placement; TypeScript/Vite production build passes.
+- This is the first sample, not completion of the full room redesign. Studio staging, game-room furniture/lighting, garden path edge transitions and comprehensive physical-device checks remain pending.

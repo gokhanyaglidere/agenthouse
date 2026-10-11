@@ -124,12 +124,22 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    // Lights are confined to unoccupied wall slots; no random panel overlays.
    if(![1,5,11,12,13,14].includes(index))prop('BB_LAMP',room.left+1,room.top);
    door(room,room.doorSide,room.door);for(const d of room.extraDoors??[])door(room,d.side,d.at);
-   c.font='bold 7px Georgia,serif';c.textAlign='center';c.textBaseline='middle';
-   const title=room.locked?'GÖKHAN · ÖZEL OFİS':room.label,width=c.measureText(title).width+10;
-   if(index!==10){
-    const center=(l+r+16)/2,plaqueY=t-12;
-    rect(center-width/2-1,plaqueY,width+2,11,'#614831');rect(center-width/2,plaqueY+1,width,9,'#eadcba');c.fillStyle='#354c36';c.fillText(title,center,plaqueY+5.5);
+   // CEO and meeting partitions keep the same collision footprint and doors.
+   if(index===0||index===2){
+    const glass=(px:number,py:number,w:number,h:number)=>{
+     rect(px,py,w,h,'#bed8d069');rect(px,py,w,2,'#f0ead4');rect(px,py+h-3,w,3,'#775d41');
+     if(w>h){for(let xx=px;xx<px+w;xx+=32){rect(xx,py,2,h,'#775d41');rect(xx+5,py+3,1,Math.max(1,h-7),'#efffffa0');}}
+     else{for(let yy=py;yy<py+h;yy+=32){rect(px,yy,w,2,'#775d41');rect(px+4,yy+5,1,Math.min(19,py+h-yy-5),'#efffffa0');}}
+    };
+    // Replace corridor-facing opaque stretches with wood-framed glazing.
+    glass(r,t+16,16,b-t-16);
+    if(room.doorSide==='south'){
+     glass(l+16,b,(room.door-1)*16-l-16,16);
+     glass((room.door+2)*16,b,r-(room.door+2)*16,16);
+    }else glass(l+16,b,r-l-16,16);
+    door(room,room.doorSide,room.door);
    }
+
   }
   // Reception brand belongs directly above the actual welcome counter.
   const sx=41*16,sy=44*16-10;
@@ -143,6 +153,22 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   rect(45*16+5,56*16,38,10,'#7b6849');rect(45*16+7,56*16+2,34,1,'#c4ab78');
  }
  ctx.imageSmoothingEnabled=false;ctx.drawImage(scenery,x,y,scenery.width*zoom,scenery.height*zoom);
+ // Draw room names at display resolution rather than enlarging a 7px bitmap.
+ ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+ const dpr=typeof window==='undefined'?1:window.devicePixelRatio||1;
+ const fontSize=Math.round(Math.max(10*dpr,Math.min(15*dpr,7*zoom)));
+ ctx.font=`600 ${fontSize}px system-ui, sans-serif`;
+ for(const [index,room]of COZY_ROOMS.entries()){
+  if(room.outdoor||index===10)continue;
+  const title=room.locked?'GÖKHAN · ÖZEL OFİS':room.label;
+  const cx=Math.round(x+(room.left+room.right+1)*8*zoom),cy=Math.round(y+(room.top*16-7)*zoom);
+  const width=Math.ceil(ctx.measureText(title).width)+12*dpr,height=fontSize+6*dpr;
+  if(cx+width/2<0||cx-width/2>ctx.canvas.width||cy+height/2<0||cy-height/2>ctx.canvas.height)continue;
+  ctx.fillStyle='#614831';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
+  ctx.fillStyle='#eadcba';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
+  ctx.fillStyle='#354c36';ctx.fillText(title,cx,cy);
+ }
+ ctx.restore();
  if(motionEnabled()){
   const time=performance.now()/1000;
   ctx.save();ctx.translate(x,y);ctx.scale(zoom,zoom);

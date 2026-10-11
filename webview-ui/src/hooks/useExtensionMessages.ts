@@ -228,7 +228,7 @@ export function useExtensionMessages(
         const savedTheme=localStorage.getItem(workspaceStorage('bb-theme'));
         const theme:Theme=savedTheme==='night'||savedTheme==='garden'?savedTheme:'studio';
         const missingProjectSeats=!!rawLayout&&ROSTER.some(role=>!rawLayout.furniture.some(f=>f.uid==='seat-'+role.key));
-        const layout = rawLayout?.layoutRevision===115&&!missingProjectSeats ? refineSavedLayout(rawLayout) : !rawLayout || missingProjectSeats || (rawLayout.layoutRevision ?? 0)<COZY_REVISION ? makeLayout(theme) : rawLayout.version === 1 ? migrateLayoutColors(rawLayout) : null;
+        const layout = rawLayout && [115,116].includes(rawLayout?.layoutRevision??0)&&!missingProjectSeats ? refineSavedLayout(rawLayout) : !rawLayout || missingProjectSeats || (rawLayout.layoutRevision ?? 0)<COZY_REVISION ? makeLayout(theme) : rawLayout.version === 1 ? migrateLayoutColors(rawLayout) : null;
         if (layout) {
           os.rebuildFromLayout(layout);
           onLayoutLoaded?.(layout);

@@ -202,3 +202,13 @@ it('keeps every concurrent chief session in the private CEO room without borrowi
  for(let i=0;i<500;i++)office.update(.1);
  expect([501,502,503].every(id=>{const ch=office.characters.get(id)!;return insideCeo(ch.tileCol,ch.tileRow);})).toBe(true);
 });
+
+it('groups default CEO visitor seats without moving owner-customized furniture',()=>{
+ const old=makeLayout('studio');old.layoutRevision=116;
+ for(const f of old.furniture){if(f.uid==='ceo-sofa')f.type='BB_SOFA';if(f.uid==='ceo-table')f.col=8;if(f.uid==='ceo-chair'){f.col=12;f.row=8;}}
+ const upgraded=refineSavedLayout(old);
+ expect(upgraded.furniture.find(f=>f.uid==='ceo-sofa')).toMatchObject({type:'BB_ARMCHAIR',col:5,row:11});
+ expect(upgraded.furniture.find(f=>f.uid==='ceo-chair')).toMatchObject({col:9,row:11});
+ const custom=old.furniture.find(f=>f.uid==='ceo-chair')!;custom.col=11;
+ expect(refineSavedLayout(old).furniture.find(f=>f.uid===custom.uid)).toMatchObject({col:11,row:8});
+});

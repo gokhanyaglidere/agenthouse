@@ -3,7 +3,7 @@ import {ROSTER} from './roster.js';
 import {getPlacementBlockedTiles} from '../office/layout/layoutSerializer.js';
 
 export type Theme='studio'|'night'|'garden';
-export const COZY_REVISION=116;
+export const COZY_REVISION=117;
 export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
  const printer=layout.furniture.find(f=>f.uid==='finance-printer');
  let furniture=layout.furniture;
@@ -11,6 +11,13 @@ export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
   const moved={...printer,col:11,row:49};
   const occupied=getPlacementBlockedTiles(layout.furniture.filter(f=>f.uid!==printer.uid));
   if([...getPlacementBlockedTiles([moved])].every(tile=>!occupied.has(tile)))furniture=layout.furniture.map(f=>f.uid===printer.uid?moved:f);
+ }
+ // Upgrade only unchanged default visitor furniture, preserving owner edits.
+ const defaults=[{uid:'ceo-sofa',col:5,row:11,type:'BB_SOFA',next:{type:'BB_ARMCHAIR',col:5,row:11}},{uid:'ceo-table',col:8,row:11,type:'BB_COFFEE_TABLE',next:{type:'BB_COFFEE_TABLE',col:7,row:11}},{uid:'ceo-chair',col:12,row:8,type:'BB_ARMCHAIR',next:{type:'BB_ARMCHAIR',col:9,row:11}}];
+ if(layout.layoutRevision===116&&defaults.every(d=>furniture.some(f=>f.uid===d.uid&&f.type===d.type&&f.col===d.col&&f.row===d.row))){
+  const proposed=furniture.map(f=>{const d=defaults.find(d=>d.uid===f.uid);return d?{...f,...d.next}:f;});
+  const other=getPlacementBlockedTiles(furniture.filter(f=>!defaults.some(d=>d.uid===f.uid)));
+  if([...getPlacementBlockedTiles(proposed.filter(f=>defaults.some(d=>d.uid===f.uid)))].every(tile=>!other.has(tile)))furniture=proposed;
  }
  return {...layout,furniture,layoutRevision:COZY_REVISION};
 }
@@ -125,7 +132,7 @@ export function makeLayout(theme:Theme):OfficeLayout {
  }
  for(const mount of WALL_PLACEMENTS)add(mount.uid,mount.type,mount.col,COZY_ROOMS[mount.room].top-(mount.lift??0));
  for(const [uid,type,col,row] of [
-  ['ceo-sofa','BB_SOFA',5,11],['ceo-table','BB_COFFEE_TABLE',8,11],['ceo-chair','BB_ARMCHAIR',12,8],['ceo-plant','BB_MONSTERA',13,11],
+  ['ceo-sofa','BB_ARMCHAIR',5,11],['ceo-table','BB_COFFEE_TABLE',7,11],['ceo-chair','BB_ARMCHAIR',9,11],['ceo-plant','BB_MONSTERA',13,11],
   ['platform-board','BB_WHITEBOARD',26,3],['delivery-board','BB_EDITORIAL_BOARD',45,3],
   ['technical-board','BB_ANALYTICS_BOARD',64,3],['content-board','BB_EDITORIAL_BOARD',26,19],['growth-map','BB_SEARCH_MAP',45,19],
   ['studio-board','BB_EDITORIAL_BOARD',6,19],['studio-camera','BB_CAMERA',8,28],['studio-light','BB_SOFTBOX',13,27],['studio-chair','BB_ARMCHAIR',5,28],
