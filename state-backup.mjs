@@ -22,6 +22,14 @@ export class StateBackup{
   }catch(error){rmSync(temporary,{recursive:true,force:true});this.error='Yedek oluşturulamadı; mevcut kayıtlar korunuyor.';throw error;}
   return this.state();
  }
+ exportLatest(){
+  const latest=this.list()[0];if(!latest)throw new Error('Henüz yedek yok.');
+  const manifest=JSON.parse(readFileSync(join(this.directory,latest.id,'manifest.json'),'utf8'));
+  if(manifest.version!==1||!Array.isArray(manifest.files)||manifest.files.length>500)throw new Error('Geçersiz yedek.');
+  const files=manifest.files.map(f=>{if(typeof f.path!=='string'||!safe(f.path)||!Number.isSafeInteger(f.bytes)||f.bytes>16*1024*1024)throw new Error('Geçersiz kayıt yolu.');const path=join(this.directory,latest.id,f.path);const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>16*1024*1024)throw new Error('Geçersiz kayıt.');return {...f,data:readFileSync(path).toString('base64')};});
+  const archive={format:'agent-house-state',version:1,at:manifest.at,files};
+  validateArchive(archive);return archive;
+ }
  // Restore only into a NEW staging directory. Never replace active state or processes.
  restoreTo(id,destination){
   if(!/^\d+-[a-f0-9-]+$/.test(id)||existsSync(destination))throw new Error('Geçersiz yedek veya hedef zaten var.');
@@ -30,4 +38,23 @@ export class StateBackup{
   const data=manifest.files.map(f=>{if(!safe(f.path))throw new Error('Geçersiz kayıt yolu.');const body=readFileSync(join(source,f.path));if(hash(body)!==f.sha256||body.length!==f.bytes)throw new Error('Yedek bütünlüğü doğrulanamadı.');JSON.parse(body.toString());return {path:f.path,body};});
   mkdirSync(destination,{mode:0o700});for(const f of data){const path=join(destination,f.path);mkdirSync(dirname(path),{recursive:true,mode:0o700});writeFileSync(path,f.body,{mode:0o600});}return {files:data.length};
  }
+}
+
+function validateArchive(archive){
+ if(archive?.format!=='agent-house-state'||archive.version!==1||!Array.isArray(archive.files)||!archive.files.length||archive.files.length>500)throw new Error('Geçersiz yedek.');
+ const seen=new Set();let total=0;
+ return archive.files.map(f=>{
+  if(typeof f.path!=='string'||!safe(f.path)||seen.has(f.path))throw new Error('Geçersiz veya yinelenen kayıt yolu.');seen.add(f.path);
+  if(typeof f.data!=='string'||f.data.length>24*1024*1024||!Number.isSafeInteger(f.bytes)||f.bytes<0||f.bytes>16*1024*1024)throw new Error('Geçersiz kayıt boyutu.');
+  const body=Buffer.from(f.data,'base64');total+=body.length;
+  if(total>64*1024*1024||body.length!==f.bytes||hash(body)!==f.sha256)throw new Error('Yedek bütünlüğü doğrulanamadı.');
+  JSON.parse(body.toString());return {path:f.path,body};
+ });
+}
+export function restoreArchive(archive,destination){
+ if(existsSync(destination))throw new Error('Hedef zaten var; canlı kayıtlar değiştirilmedi.');
+ const files=validateArchive(archive);
+ mkdirSync(destination,{mode:0o700});
+ try{for(const f of files){const path=join(destination,f.path);mkdirSync(dirname(path),{recursive:true,mode:0o700});writeFileSync(path,f.body,{mode:0o600});}}catch(error){rmSync(destination,{recursive:true,force:true});throw error;}
+ return {files:files.length};
 }

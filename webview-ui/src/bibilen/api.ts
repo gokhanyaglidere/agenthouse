@@ -82,3 +82,9 @@ export const takeoverSession=(id:string)=>request<{session:import('./types.js').
 export interface BackupState{last:{id:string;at:number;files:number;bytes:number}|null;count:number;error:string|null;retention:number}
 export const getBackups=()=>request<BackupState>('backups');
 export const createBackup=()=>request<BackupState>('backups',{method:'POST'});
+
+export async function downloadBackup(){
+ const archive=await request<unknown>('backups/export');
+ const url=URL.createObjectURL(new Blob([JSON.stringify(archive)],{type:'application/json'}));
+ const link=document.createElement('a');link.href=url;link.download=`agent-house-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}

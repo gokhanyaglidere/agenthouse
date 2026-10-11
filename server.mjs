@@ -195,6 +195,10 @@ async function handleApi(req,res,url){
       const items=await Promise.all(projects.data.workspaces.map(async w=>{const r=runtimes.get(w.id);const p=projects.data.projects.find(p=>p.id===w.projectId);let work=null;try{if(r)work=await r.workTracker.overview();}catch{}return {workspaceId:w.id,projectId:w.projectId,name:p.name,available:!!r&&!r.nativeFailed,tasks:r?r.taskManager.publicState(operator).tasks:[],inventoryAvailable:work?.inventoryAvailable??false,connectedSessions:work?.totalLiveSessions??work?.groups.length??0,workingMembers:work?.groups.flatMap(g=>g.members.filter(m=>m.liveState==='running').map(m=>({sessionId:g.sessionId,id:m.id,label:m.label,role:m.role})))??[]};}));
       sendJson(res,200,{items,admission:admission.state()});return true;
     }
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/backups/export'){
+      if(!operator){sendJson(res,403,{error:'Yedekleri yalnızca yönetici indirebilir.'});return true;}
+      res.setHeader('Content-Disposition','attachment; filename="agent-house-backup.json"');sendJson(res,200,stateBackup.exportLatest());return true;
+    }
     if(url.pathname==='/bibilen/api/backups'){if(!operator){sendJson(res,403,{error:'Yedekleri yalnızca yönetici görebilir.'});return true;}if(req.method==='POST')stateBackup.create();sendJson(res,200,stateBackup.state());return true;}
     const runtime=getRuntime(workspaceScope(url,req.headers,defaultWorkspace.id));
     const {context:executionContext,cwd,taskManager,sessionManager,workTracker,appearance,integrations,slackAlarms,dailyReports,operations,pushManager}=runtime;

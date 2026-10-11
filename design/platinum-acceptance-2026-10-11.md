@@ -39,3 +39,10 @@ Owner authorized the complete upgrade on 2026-10-11. Slack and finance connectio
 - Backups cover selected Agent House metadata and office state, not source repositories, full Claude transcripts or disaster recovery from losing this computer. Provider credentials must be reconnected separately. Active restoration intentionally is not exposed as a one-click live overwrite.
 - Claude account usage queries rely on an endpoint without a public stability contract; failed/expired readings hide percentages.
 - Cross-host aggregation is not implemented. Slack and financial feeds remain deferred.
+
+## Portable backup follow-up
+
+- Operators can download the latest metadata snapshot from Account → Record security → Download backup. Viewer requests are refused server-side.
+- Portable JSON includes selected metadata, not credentials or full Claude transcripts. Treat the downloaded file as private; store it on a second device or personal storage.
+- `node restore-backup.mjs ARCHIVE.json NEW_DIRECTORY` verifies hashes, size limits, JSON, duplicate paths and the file whitelist before creating a private staging copy. Existing destinations are refused. No live restore or upload to third-party storage happens automatically.
+- Physical iPhone checks and additional host setup require the owner's devices. External busy CLI input remains controlled by its actual terminal. Cross-host aggregation is a separate implementation, requiring a registered second host and identity/connection model; it is not enabled by this update.
