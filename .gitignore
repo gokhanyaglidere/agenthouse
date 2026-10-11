@@ -1,0 +1,17 @@
+node_modules/
+build/
+webview-ui/node_modules/
+
+# Local credentials, state, runtime files and visual verification
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jsonl
+*.log
+.DS_Store
+/design/*
+!/design/*.md
+!/design/assets/
+/coverage/

@@ -1,0 +1,13 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import ts from './webview-ui/node_modules/typescript/lib/typescript.js';
+const root=dirname(fileURLToPath(import.meta.url));
+const source=readFileSync(resolve(root,'webview-ui/src/bibilen/roster.ts'),'utf8');
+const ROSTER=JSON.parse(source.split('export const ROSTER = ')[1].split(' as const;')[0]);
+const compiled=ts.transpileModule(readFileSync(resolve(root,'webview-ui/src/bibilen/layouts.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+const result={};
+new Function('require','exports',compiled)(()=>({ROSTER}),result);
+const layout=result.makeLayout('studio');
+writeFileSync(resolve(root,'default-layout.json'),JSON.stringify(layout)+'\n');
+console.log('Generated department rooms and CEO office.');
