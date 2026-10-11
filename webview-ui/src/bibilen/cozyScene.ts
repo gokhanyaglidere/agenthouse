@@ -144,17 +144,28 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
       }
       rect(px+w-1,top,1,base-top,'#526d66');
      }else{
-      rect(px-5,py,20,h,'#aedcdd45');rect(px-5,py,1,h,'#eef9ed');rect(px+14,py,1,h,'#526d66');
-      for(let yy=py;yy<py+h;yy+=32){rect(px-5,yy,20,1,'#688781');for(let n=0;n<9;n++)if(yy+8+n<py+h)rect(px-2+n,yy+8+n,2,1,'#f0ffffa0');}
+      rect(px,py,16,h,'#aedcdd45');rect(px,py,1,h,'#eef9ed');rect(px+15,py,1,h,'#526d66');
+      for(let yy=py;yy<py+h;yy+=32){rect(px,yy,16,1,'#688781');for(let n=0;n<9;n++)if(yy+8+n<py+h)rect(px+3+n,yy+8+n,2,1,'#f0ffffa0');}
      }
     };
     // Replace corridor-facing opaque stretches with wood-framed glazing.
     glass(r,t+16,16,b-t-16);
     if(room.doorSide==='south'){
      glass(l+16,b,(room.door-1)*16-l-16,16);
-     glass((room.door+2)*16,b,r-(room.door+2)*16,16);
-    }else glass(l+16,b,r-l-16,16);
-    door(room,room.doorSide,room.door);
+     glass((room.door+2)*16,b,r+16-(room.door+2)*16,16);
+    }else glass(l+16,b,r-l,16);
+    // Shared corner mullions meet the side partition and front glazing.
+    rect(r,b-24,2,38,'#526d66');rect(r+2,b-24,1,38,'#d4e5cc');
+    rect(r+15,b-24,1,38,'#526d66');rect(r,b-24,16,2,'#648b89');
+    if(room.doorSide==='south'){
+     const dx=(room.door-1)*16,top=b-24;
+     rect(dx,top,48,38,'#526d66');rect(dx+2,top+2,44,34,'#acd4ce65');
+     rect(dx+23,top+2,2,34,'#526d66');
+     rect(dx+3,top+27,42,8,'#927453');rect(dx+3,top+35,42,1,'#c6aa7a');
+     rect(dx+34,top+17,2,7,'#e9c888');
+     for(let n=0;n<9;n++)rect(dx+7+n,top+6+n,2,1,'#f0ffff90');
+    }
+
    }
 
   }
