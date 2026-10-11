@@ -184,7 +184,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    if(index===8){
   // Warm game-room accents: cue rack and score display on the back wall.
   rect(59*16,48*16+2,64,23,'#514a50');rect(59*16+2,48*16+4,60,18,'#c6b397');
-  c.font='bold 7px monospace';c.fillStyle='#4d6557';c.textAlign='center';c.fillText('BİLARDO  00 : 00',61*16,48*16+15);
+  c.font='bold 10px monospace';c.fillStyle='#4d6557';c.textAlign='center';c.fillText('00 : 00',61*16,48*16+15);
   for(let i=0;i<3;i++){rect((64*16)+i*3,48*16+4,1,27,'#c3a373');rect((64*16)+i*3,48*16+4,1,3,'#697f79');}
    }
   }

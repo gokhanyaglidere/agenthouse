@@ -66,3 +66,10 @@ Owner rejected the initial low tinted strips as resembling a railing. Replaced t
 - Default furniture migrations are scoped by UID/old position, checked for collisions and skip owner-modified groups.
 - 41 UI tests pass, including saved placement migration and existing full layout overlap/path checks; production build passes. Live studio, game-room and garden views inspected.
 - Room-specific lighting and richer purpose-built equipment assets still need a dedicated pass. This does not claim the entire office design is complete. Glass refinements paused at owner's request.
+
+## Room lighting pass
+
+- Cached static floor-light layer: softbox beam into studio subject bay, restrained cyan/violet arcade spill, warm billiards/rest/cafe light and garden lantern pools.
+- Light is clipped to each room's interior, below furniture, characters and agent overlays; no flicker or additional motion. Layer uses one 1232×1232 RGBA canvas (~5.8 MiB raw storage); device-specific total memory/performance remains unmeasured.
+- Game score panel text shortened to fit its frame at native sprite resolution.
+- Production build passes; live game-room view checked. Glass work remains paused, full visual redesign is not declared complete.

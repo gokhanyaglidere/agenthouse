@@ -1,3 +1,4 @@
+import {renderCozyLighting} from '../../bibilen/cozyLighting.js';
 import {treeSway,renderDoors,renderWildlife} from '../../bibilen/environment.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import { renderCozyScene } from '../../bibilen/cozyScene.js';
@@ -921,7 +922,7 @@ export function renderFrame(
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
   const cozy=cols===COZY_COLS&&rows===COZY_ROWS&&areas?.some(a=>a.label==='Gökhan · CEO');
-  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters);}
+  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom);renderCozyLighting(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters);}
 
   // Carpet layer (above floor, below seat indicators / furniture / characters)
   if (carpetTiles && carpetTiles.length > 0) {
