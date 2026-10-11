@@ -12,3 +12,9 @@ export function waitingCount(tasks:BibilenTask[],groups:WorkTrace[]){
  const live=groups.filter(g=>g.live);
  return live.reduce((n,g)=>n+g.members.filter(m=>m.liveState==='waiting').length,0)+tasks.filter(t=>t.status==='waiting'&&!live.some(g=>g.taskId===t.id||!!t.sessionId&&g.sessionId===t.sessionId)).length;
 }
+
+export function prioritizeOperations<T extends {task?:BibilenTask;trace?:WorkTrace}>(rows:T[]):T[]{
+ const rank=(row:T)=>row.task?.status==='waiting'||row.trace?.members.some(m=>m.liveState==='waiting')?0:row.task?.status==='running'||row.trace?.members.some(m=>m.liveState==='running')?1:['starting','queued'].includes(row.task?.status??'')?2:3;
+ const priority=(row:T)=>row.task?.priority==='urgent'?0:row.task?.priority==='high'?1:2;
+ return [...rows].sort((a,b)=>rank(a)-rank(b)||priority(a)-priority(b));
+}

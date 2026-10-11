@@ -461,3 +461,12 @@ div:has(>.bb-shell .bb-session-focus)>.bb-native-tool{visibility:hidden}
 
 .bb-legacy-tools:not(.editing){display:none}
 .bb-menu-items{max-height:calc(100dvh - 150px);overflow:auto}
+
+/* One visual language for navigation, forms and conversation surfaces. */
+.bb-shell{--blue:#3b7259;--blue-2:#b7d5c1;--line:#536b5c;--muted:#c2cfbf}
+.bb-shell .bb-primary{background:var(--blue);border-color:#719982;box-shadow:none}.bb-shell .bb-primary:hover:not(:disabled){background:#478666;border-color:#b7d5c1}
+.bb-rail button.active,.bb-mobile-nav button.active{background:#355642;color:var(--paper)}
+.bb-shell button:hover:not(:disabled){background:#3e5748;border-color:#a7c1ad}.bb-shell button:active:not(:disabled){background:#486550}
+.bb-shell input:not([type=range]),.bb-shell select,.bb-shell textarea:not(.xterm-helper-textarea){border-color:#718a78}.bb-shell input::placeholder,.bb-shell textarea:not(.xterm-helper-textarea)::placeholder{color:#b8c6bb}
+.bb-message{line-height:1.7}.bb-terminal-history:focus-visible{outline-offset:-4px}.bb-message-table{max-width:100%}.bb-message :is(pre,code){overflow-wrap:anywhere}
+.bb-menu-items button:focus-visible{outline-offset:-3px}.bb-session-list article{min-width:0}.bb-session-list h2{overflow-wrap:anywhere}

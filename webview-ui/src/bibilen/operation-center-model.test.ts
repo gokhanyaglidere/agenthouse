@@ -1,4 +1,4 @@
-import {test,expect} from 'vitest';import {operationRows,currentMembers,liveCommunication,workingCount,waitingCount} from './operation-center-model.js';import type {BibilenTask,WorkTrace,WorkMember} from './types.js';
+import {test,expect} from 'vitest';import {operationRows,prioritizeOperations,currentMembers,liveCommunication,workingCount,waitingCount} from './operation-center-model.js';import type {BibilenTask,WorkTrace,WorkMember} from './types.js';
 const task=(id:string,status='running',sessionId:string|null=null)=>({id,title:id,status,sessionId,role:'chief'} as BibilenTask);
 const trace=(sessionId:string,taskId:string|null=null,live=true)=>({sessionId,taskId,live,title:sessionId,members:[],events:[]} as unknown as WorkTrace);
 test('task and exact session join once; queues and external sessions remain; finished work/history excluded',()=>{const rows=operationRows([task('active','running','s1'),task('queue','queued'),task('done','completed')],[trace('s1','active'),trace('external'),trace('old',null,false),trace('done-session','done')]);expect(rows.map(x=>x.id)).toEqual(['task:active','task:queue','session:external']);expect(rows[0].trace?.sessionId).toBe('s1');expect(rows[1].trace).toBeUndefined();});
@@ -8,3 +8,11 @@ test('communication contains recorded messages/delegations/results, never invent
 test('working count includes external lead and specialists without counting a panel task twice or historical workers',()=>{const external=trace('cli');external.members=[{id:'lead',liveState:'running'},{id:'worker',liveState:'running'},{id:'old',status:'running'}] as WorkMember[];expect(workingCount([], [external])).toBe(2);expect(workingCount([task('panel','running','cli'),task('untracked')],[external])).toBe(3);expect(workingCount([],[{...external,live:false}])).toBe(0);});
 
 test('waiting inventory includes external sessions and avoids duplicate managed tasks',()=>{const external=trace('cli');external.members=[{id:'lead',liveState:'waiting'}] as WorkMember[];expect(waitingCount([task('panel','waiting','cli')],[external])).toBe(1);expect(waitingCount([],[{...external,live:false}])).toBe(0);});
+
+test('response requests precede running work and queues, with urgency within each group; historical statuses do not demand attention',()=>{
+ const external=trace('external');external.members=[{id:'lead',liveState:'waiting'}] as WorkMember[];
+ const old=trace('old');old.members=[{id:'lead',status:'waiting',liveState:'idle'}] as WorkMember[];
+ const input=operationRows([task('normal','running'),{...task('urgent','running'),priority:'urgent'},task('queue','queued'),task('reply','waiting')],[external,old]);
+ expect(prioritizeOperations(input).map(r=>r.id)).toEqual(['task:reply','session:external','task:urgent','task:normal','task:queue','session:old']);
+ expect(input[0].id).toBe('task:normal');
+});
