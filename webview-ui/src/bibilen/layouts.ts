@@ -3,7 +3,7 @@ import {ROSTER} from './roster.js';
 import {getPlacementBlockedTiles} from '../office/layout/layoutSerializer.js';
 
 export type Theme='studio'|'night'|'garden';
-export const COZY_REVISION=118;
+export const COZY_REVISION=120;
 export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
  const printer=layout.furniture.find(f=>f.uid==='finance-printer');
  let furniture=layout.furniture;
@@ -32,6 +32,23 @@ export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
    furniture=[...remaining,...group.next];
   }
  }
+ if(layout.layoutRevision===118||layout.layoutRevision===119){
+  const editing=['desk-remotion-producer','seat-remotion-producer','desk-visual-content-producer','seat-visual-content-producer'];
+  if(editing.every(uid=>furniture.some(f=>f.uid===uid&&f.row===(uid.startsWith('desk-')?23:25)))){
+   const moved=furniture.filter(f=>editing.includes(f.uid)).map(f=>({...f,row:f.row-1}));
+   const other=getPlacementBlockedTiles(furniture.filter(f=>!editing.includes(f.uid)));
+   if([...getPlacementBlockedTiles(moved)].every(tile=>!other.has(tile)))furniture=furniture.map(f=>moved.find(m=>m.uid===f.uid)??f);
+  }
+  const variants:Record<string,string>={'accounting-board':'BB_LEDGER_BOARD','sales-board':'BB_PIPELINE_BOARD','studio-camera':'BB_CAMERA_NORTH'};
+  const prior:Record<string,string>={'accounting-board':'BB_NOTICE','sales-board':'BB_EDITORIAL_BOARD','studio-camera':'BB_CAMERA'};
+  furniture=furniture.map(f=>variants[f.uid]&&f.type===prior[f.uid]?{...f,type:variants[f.uid]}:f);
+  for(const next of ROOM_ADDITIONS){
+   if(furniture.some(f=>f.uid===next.uid))continue;
+   const occupied=getPlacementBlockedTiles(furniture);
+   if([...getPlacementBlockedTiles([next])].every(tile=>!occupied.has(tile)))furniture=[...furniture,{...next}];
+  }
+ }
+ if((layout.layoutRevision??0)>=115&&(layout.layoutRevision??0)<118)return refineSavedLayout({...layout,furniture,layoutRevision:layout.layoutRevision!+1});
  return {...layout,furniture,layoutRevision:COZY_REVISION};
 }
 export const COZY_COLS=77,COZY_ROWS=77;
@@ -96,7 +113,7 @@ export const WORK_TEAMS=[
  {room:16,cols:[23,27,31],rows:[22,27],roles:['seo-cluster','seo-content','seo-flow','seo-geo','seo-image-gen','seo-visual']},
  {room:17,cols:[41,45,49],rows:[22,27],roles:['seo-backlinks','seo-ecommerce','seo-google','seo-local','seo-maps','seo-sxo']},
  {room:0,cols:[5],rows:[7],roles:['chief']},
- {room:4,cols:[5,11],rows:[23],roles:['remotion-producer','visual-content-producer']},
+ {room:4,cols:[5,11],rows:[22],roles:['remotion-producer','visual-content-producer']},
  {room:6,cols:[41],rows:[38],roles:['marketing-lead']},
  {room:13,cols:[5],rows:[50],roles:['finance-analyst']},
  {room:14,cols:[23],rows:[50],roles:['accounting-analyst']},
@@ -128,6 +145,20 @@ export const WALL_PLACEMENTS:Array<{uid:string;type:string;room:number;col:numbe
  {uid:'game-arcade-b',type:'BB_ARCADE',room:8,col:69},
 ];
 
+export const ROOM_ADDITIONS:PlacedFurniture[]=[
+ {uid:'platform-pod-plant',type:'BB_FLOWERS',col:34,row:12},
+ {uid:'delivery-pod-plant',type:'BB_FLOWERS',col:52,row:12},
+ {uid:'technical-pod-plant',type:'BB_FLOWERS',col:71,row:12},
+ {uid:'content-pod-plant',type:'BB_FLOWERS',col:34,row:29},
+ {uid:'growth-pod-plant',type:'BB_FLOWERS',col:52,row:29},
+ {uid:'finance-review',type:'BB_REVIEW_TABLE',col:12,row:52},
+ {uid:'finance-visitor',type:'BB_ARMCHAIR',col:14,row:52},
+ {uid:'accounting-printer',type:'BB_PRINTER',col:28,row:51},
+ {uid:'studio-fill-light',type:'BB_SOFTBOX_LEFT',col:14,row:27},
+ {uid:'grove-seat-bed',type:'BB_FLOWERBED',col:12,row:62},
+ {uid:'grove-seat-shrub',type:'BB_SHRUB',col:16,row:62},
+ {uid:'terrace-seat-bed',type:'BB_FLOWERBED',col:50,row:61},
+];
 export function makeLayout(theme:Theme):OfficeLayout {
  const furniture:PlacedFurniture[]=[];
  const add=(uid:string,type:string,col:number,row:number)=>furniture.push({uid,type,col,row});
@@ -148,16 +179,16 @@ export function makeLayout(theme:Theme):OfficeLayout {
   ['ceo-sofa','BB_ARMCHAIR',5,11],['ceo-table','BB_COFFEE_TABLE',7,11],['ceo-chair','BB_ARMCHAIR',9,11],['ceo-plant','BB_MONSTERA',13,11],
   ['platform-board','BB_WHITEBOARD',26,3],['delivery-board','BB_EDITORIAL_BOARD',45,3],
   ['technical-board','BB_ANALYTICS_BOARD',64,3],['content-board','BB_EDITORIAL_BOARD',26,19],['growth-map','BB_SEARCH_MAP',45,19],
-  ['studio-board','BB_EDITORIAL_BOARD',6,19],['studio-camera','BB_CAMERA',10,29],['studio-light','BB_SOFTBOX',7,27],['studio-chair','BB_ARMCHAIR',10,27],
+  ['studio-board','BB_EDITORIAL_BOARD',6,19],['studio-camera','BB_CAMERA_NORTH',10,29],['studio-light','BB_SOFTBOX',7,27],['studio-chair','BB_ARMCHAIR',10,27],
   ['marketing-board','BB_EDITORIAL_BOARD',49,36],['marketing-plant','BB_MONSTERA',52,39],
   ['rest-sofa','BB_SOFA',59,21],['rest-chair','BB_ARMCHAIR',65,21],['rest-table','BB_COFFEE_TABLE',62,22],['rest-plant','BB_FLOWERS',71,23],
-  ['sales-board','BB_EDITORIAL_BOARD',59,27],['sales-visitor','BB_ARMCHAIR',65,29],['sales-table','BB_COFFEE_TABLE',67,29],['sales-flowers','BB_FLOWERS',71,30],
+  ['sales-board','BB_PIPELINE_BOARD',59,27],['sales-visitor','BB_ARMCHAIR',65,29],['sales-table','BB_COFFEE_TABLE',67,29],['sales-flowers','BB_FLOWERS',71,30],
   ['cafe-sofa','BB_SOFA',4,40],['cafe-chair','BB_ARMCHAIR',8,40],['cafe-table','BB_COFFEE_TABLE',5,42],['cafe-board','BB_NOTICE',10,36],['cafe-plant','BB_MONSTERA',15,42],
   ['meeting-table','BB_MEETING_TABLE',24,39],['meeting-board','BB_WHITEBOARD',25,36],['meeting-plant','BB_TREE',33,42],
   ['meeting-a','BB_OFFICE_FRONT',24,38],['meeting-b','BB_OFFICE_FRONT',26,38],['meeting-c','BB_OFFICE_FRONT',28,38],
   ['meeting-d','BB_OFFICE_BACK',24,42],['meeting-e','BB_OFFICE_BACK',26,42],['meeting-f','BB_OFFICE_BACK',28,42],
   ['finance-chart','BB_FINANCE_CHART',8,48],['finance-printer','BB_PRINTER',11,49],
-  ['accounting-board','BB_NOTICE',23,48],
+  ['accounting-board','BB_LEDGER_BOARD',23,48],
   ['reception-counter','BB_COUNTER',41,46],['reception-sofa','BB_SOFA',49,48],['reception-chair','BB_ARMCHAIR',49,51],['reception-table','BB_COFFEE_TABLE',51,50],['reception-plant','BB_MONSTERA',52,52],['reception-coat','BB_COAT',40,51],
   ['dining-table','BB_DINING',63,41],['dining-a','BB_DINING_FRONT',64,40],['dining-b','BB_DINING_FRONT',66,40],['dining-c','BB_DINING_BACK',64,44],['dining-d','BB_DINING_BACK',66,44],
   ['game-pool','BB_POOL',59,50],['game-bench','BB_BENCH',69,52],
@@ -170,6 +201,7 @@ export function makeLayout(theme:Theme):OfficeLayout {
   ['terrace-bench-a','BB_BENCH',50,64],['terrace-bench-b','BB_BENCH',61,64],['terrace-beds-a','BB_FLOWERBED',54,60],['terrace-beds-b','BB_FLOWERBED',69,64],['terrace-planter-a','BB_GARDEN_PLANTER',40,64],['terrace-planter-b','BB_GARDEN_PLANTER',49,71],
   ['garden-table','BB_GARDEN_TABLE',55,70],['garden-chair-a','BB_DINING_FRONT',56,69],['garden-chair-b','BB_DINING_FRONT',58,69],['garden-chair-c','BB_DINING_BACK',56,73],['garden-chair-d','BB_DINING_BACK',58,73],['terrace-lamp-a','BB_LANTERN',49,69],['terrace-lamp-b','BB_LANTERN',63,69],
  ] as const)add(uid,type,col,row);
+ for(const item of ROOM_ADDITIONS)add(item.uid,item.type,item.col,item.row);
  if(theme==='garden')add('extra-flower','BB_FLOWERS',19,34);
  const tiles:TileType[]=[],areaTiles:Array<string|null>=[];
  for(let row=0;row<COZY_ROWS;row++)for(let col=0;col<COZY_COLS;col++){

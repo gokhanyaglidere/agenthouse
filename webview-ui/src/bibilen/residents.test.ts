@@ -223,3 +223,15 @@ it('upgrades default studio and game groups while preserving owner changes',()=>
  old.furniture.find(f=>f.uid==='studio-camera')!.col=6;old.furniture.find(f=>f.uid==='game-table')!.col=63;
  const customized=refineSavedLayout(old);expect(customized.furniture.find(f=>f.uid==='studio-camera')!.col).toBe(6);expect(customized.furniture.some(f=>f.uid==='game-sofa')).toBe(true);
 });
+
+it('adds department equipment without overwriting customized boards or blocked additions',()=>{
+ const old=makeLayout('studio');old.layoutRevision=118;old.furniture=old.furniture.filter(f=>!f.uid.endsWith('pod-plant')&&!['finance-review','finance-visitor','accounting-printer','studio-fill-light','grove-seat-bed','grove-seat-shrub','terrace-seat-bed'].includes(f.uid));
+ old.furniture.find(f=>f.uid==='accounting-board')!.type='BB_NOTICE';
+ old.furniture.find(f=>f.uid==='sales-board')!.type='BB_ANALYTICS_BOARD';
+ old.furniture.push({uid:'owner-review-corner',type:'BB_ARMCHAIR',col:12,row:52});
+ const next=refineSavedLayout(old);
+ expect(next.furniture.find(f=>f.uid==='accounting-board')!.type).toBe('BB_LEDGER_BOARD');
+ expect(next.furniture.find(f=>f.uid==='sales-board')!.type).toBe('BB_ANALYTICS_BOARD');
+ expect(next.furniture.some(f=>f.uid==='finance-review')).toBe(false);
+ expect(next.furniture.some(f=>f.uid==='accounting-printer')).toBe(true);
+});

@@ -18,6 +18,7 @@ export function renderCozyLighting(ctx:CanvasRenderingContext2D,x:number,y:numbe
     // Softbox beam aims into the subject bay; editing desks stay neutral.
     c.save();c.beginPath();c.moveTo(8*16,28*16);c.lineTo(13*16,26*16);c.lineTo(13*16,29*16);c.closePath();c.clip();
     const beam=c.createLinearGradient(8*16,28*16,13*16,28*16);beam.addColorStop(0,'#fff7d72b');beam.addColorStop(1,'#fff7d708');c.fillStyle=beam;c.fillRect(7*16,26*16,7*16,4*16);c.restore();
+    glow(14.5,28,2,'255,244,210',.1);
     glow(11,28,3,'255,244,210',.12);
    }else if(index===8){
     glow(67,50,2.8,'116,200,225',.18);glow(70,50,2.8,'173,144,220',.16);

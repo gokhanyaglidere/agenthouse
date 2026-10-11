@@ -8,3 +8,7 @@ export function roomCamera(layout:{cols:number;rows:number},room:{left:number;ri
  const y=mapH>canvas.height?Math.max(canvas.height-mapH,Math.min(0,desiredY)):centerY;
  return {zoom,pan:{x:x-centerX,y:y-centerY}};
 }
+
+export function zoomAtCenter(pan:{x:number;y:number},current:number,next:number){
+ const ratio=next/current;return {x:pan.x*ratio,y:pan.y*ratio};
+}

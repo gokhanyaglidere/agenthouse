@@ -1,5 +1,5 @@
 import {motionEnabled} from './motion.js';
-import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PAVING,GARDEN_TERRACE,EXTERIOR_APPROACHES,POND,type CozyRoom} from './layouts.js';
+import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PAVING,GARDEN_TERRACE,EXTERIOR_APPROACHES,POND,WORK_TEAMS,type CozyRoom} from './layouts.js';
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
 import {getCachedSprite} from '../office/sprites/spriteCache.js';
 
@@ -61,10 +61,20 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
     }
    }
   }
+  // Two coherent desk pods per working room, with a clear aisle between them.
+  for(const team of WORK_TEAMS.filter(t=>[3,5,15,16,17].includes(t.room))){
+   const room=COZY_ROOMS[team.room];
+   for(const row of team.rows){
+    const left=team.cols[0]*16-4,width=(team.cols[team.cols.length-1]-team.cols[0]+3)*16+8;
+    rect(left,row*16-3,width,3*16+8,'#7c765d20');
+    rect(left,row*16-3,width,1,room.color+'88');
+    rect(left,row*16+3*16+4,width,1,'#735b4430');
+   }
+  }
   // Dedicated filming bay below editing workstations, not random loose props.
   rect(9*16,26*16,5*16,3*16,'#718179');
-  rect(9*16+2,26*16+2,5*16-4,12,'#ddd9c4');
-  for(let dx=4;dx<78;dx+=6)rect(9*16+dx,26*16+2,1,12,'#aaa997');
+  rect(9*16+2,26*16-6,5*16-4,20,'#ddd9c4');
+  for(let dx=4;dx<78;dx+=6)rect(9*16+dx,26*16-4,1,18,'#aaa997');
   rect(9*16+3,26*16+15,5*16-6,3*16-18,'#88958b');
   for(const r of ROOM_RUGS)prop(r.type,r.col,r.row,r.w*16,r.h*16);
   // Garden is below the exterior facade, not between working rooms.

@@ -73,3 +73,16 @@ Owner rejected the initial low tinted strips as resembling a railing. Replaced t
 - Light is clipped to each room's interior, below furniture, characters and agent overlays; no flicker or additional motion. Layer uses one 1232×1232 RGBA canvas (~5.8 MiB raw storage); device-specific total memory/performance remains unmeasured.
 - Game score panel text shortened to fit its frame at native sprite resolution.
 - Production build passes; live game-room view checked. Glass work remains paused, full visual redesign is not declared complete.
+
+## Department and mobile completion pass
+
+- Finance report-review corner; accounting reconciliation board and document printer; sales pipeline board alongside the existing client seating.
+- Two floor-defined working pods in each development/SEO room, matching chairs, wall-mounted boards/storage retained, and end-of-pod planting.
+- Five native variants extend the established sprite palette: ledger board, pipeline board, document-review table, north-facing camera and mirrored fill light. Regenerate these variants with `node extend-room-assets.mjs` after rebuilding the base atlas.
+- Studio editing desks moved one row away from the backdrop; camera has a rear monitor facing the operator, a second softbox faces into the subject bay. Subject/background grouping remains separate from editing work.
+- Added planting around woodland/terrace seating. Existing stone path corners, connected surface and edging retained; path and doorway access verified by layout tests.
+- Revision 120 applies older refinements in sequence, protects customized board types and skips additions blocked by custom furniture.
+- Button zoom now preserves the viewport's world center; previously it drifted away from the selected room. Live mobile close-up verified.
+- 43 UI tests pass, including overlap/wall checks, reachable seats/social destinations, saved customization and zoom focus. Production build passes.
+- Live finance, accounting, sales, platform, technical SEO, studio and woodland screenshots reviewed. 390×844 page width equals 390 (no horizontal page overflow). Physical-phone verification remains distinct from this browser check.
+- UX expert review recorded separately in `ux-review-2026-10-11.md`: 6.5/10, with concrete remaining usability issues. Glass refinements remain deferred, not declared finished.
