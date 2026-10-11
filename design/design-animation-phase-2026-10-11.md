@@ -53,3 +53,7 @@ These are requested changes and reported defects, not completed work. Start with
 - Room plaques are drawn at display resolution with bounded font size, instead of scaling text baked into a 7px bitmap. Agent labels retain their existing display-resolution rendering.
 - Verified live CEO/meeting views and a closer zoom. 40 UI tests pass, including migration preserving custom placement; TypeScript/Vite production build passes.
 - This is the first sample, not completion of the full room redesign. Studio staging, game-room furniture/lighting, garden path edge transitions and comprehensive physical-device checks remain pending.
+
+### Glass correction after owner review
+
+Owner rejected the initial low tinted strips as resembling a railing. Replaced them with elevated 36px transparent panes, thin frames and broken diagonal reflection highlights. Opaque wall bases are erased before glazing; the room floor remains visible through the raised front panes. Production build and live CEO screenshot verified. Collision and private door behavior unchanged.

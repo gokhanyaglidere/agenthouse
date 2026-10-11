@@ -127,9 +127,26 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    // CEO and meeting partitions keep the same collision footprint and doors.
    if(index===0||index===2){
     const glass=(px:number,py:number,w:number,h:number)=>{
-     rect(px,py,w,h,'#bed8d069');rect(px,py,w,2,'#f0ead4');rect(px,py+h-3,w,3,'#775d41');
-     if(w>h){for(let xx=px;xx<px+w;xx+=32){rect(xx,py,2,h,'#775d41');rect(xx+5,py+3,1,Math.max(1,h-7),'#efffffa0');}}
-     else{for(let yy=py;yy<py+h;yy+=32){rect(px,yy,w,2,'#775d41');rect(px+4,yy+5,1,Math.min(19,py+h-yy-5),'#efffffa0');}}
+     if(w<=0||h<=0)return;
+     // Erase the opaque wall base before applying transparent glazing.
+     rect(px,py,w,h,'#c9c1ac');
+     if(w>h){
+      const top=py-24,base=py+12;
+      rect(px,top,w,base-top,'#a9d9dc40');
+      rect(px,top,w,1,'#e4f7ec');rect(px,top+1,w,1,'#648b89');
+      rect(px,base,w,2,'#4f6861');rect(px,base+2,w,2,'#aa956e');
+      for(let xx=px;xx<px+w;xx+=32){
+       rect(xx,top,1,base-top,'#526d66');rect(xx+1,top,1,base-top,'#d4e5cc');
+       const end=Math.min(xx+31,px+w-1);
+       // Broken diagonal glints make the vertical pane distinct from flooring.
+       for(let n=0;n<12;n++){const gx=xx+8+n,gy=top+7+n;if(gx<end)rect(gx,gy,2,1,'#f1ffffa0');}
+       for(let n=0;n<6;n++){const gx=xx+9+n,gy=top+18+n;if(gx<end)rect(gx,gy,1,1,'#e2ffff65');}
+      }
+      rect(px+w-1,top,1,base-top,'#526d66');
+     }else{
+      rect(px-5,py,20,h,'#aedcdd45');rect(px-5,py,1,h,'#eef9ed');rect(px+14,py,1,h,'#526d66');
+      for(let yy=py;yy<py+h;yy+=32){rect(px-5,yy,20,1,'#688781');for(let n=0;n<9;n++)if(yy+8+n<py+h)rect(px-2+n,yy+8+n,2,1,'#f0ffffa0');}
+     }
     };
     // Replace corridor-facing opaque stretches with wood-framed glazing.
     glass(r,t+16,16,b-t-16);
