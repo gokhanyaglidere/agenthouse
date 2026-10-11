@@ -9,7 +9,7 @@ import {lazy,Suspense,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useSt
 import type {OfficeState} from '../office/engine/officeState.js';
 import type {OfficeLayout} from '../office/types.js';
 import {transport} from '../transport/index.js';
-import {getState,getWorkOverview,getAppearance} from './api.js';
+import {getState,getWorkOverview,getAppearance,getNotifications} from './api.js';
 import {AppearancePanel,type Ambience} from './AppearancePanel.js';
 import {makeLayout,COZY_ROOMS,COZY_REVISION,type Theme} from './layouts.js';
 import {ROSTER,residentId,isResident} from './roster.js';
@@ -51,9 +51,16 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef}:{of
   fit();const observer=new ResizeObserver(fit);observer.observe(frame);observer.observe(host);
   return()=>observer.disconnect();
  });
+ const [officeConnection,setOfficeConnection]=useState(transport.state);
+ useEffect(()=>transport.onStateChange(setOfficeConnection),[]);
  const [stateAvailable,setStateAvailable]=useState(false);
+ const [lastStateCheck,setLastStateCheck]=useState<number|null>(null);
+ const [unread,setUnread]=useState(0);
+ const [online,setOnline]=useState(navigator.onLine);
+ const [healthClock,setHealthClock]=useState(Date.now());
+ useEffect(()=>{let alive=true;const refresh=()=>{setOnline(navigator.onLine);if(document.visibilityState==='visible')void getNotifications('all').then(n=>{if(alive)setUnread(n.items.filter(i=>!i.read).length);}).catch(()=>{});};refresh();const timer=setInterval(()=>{setHealthClock(Date.now());refresh();},10000);window.addEventListener('online',refresh);window.addEventListener('offline',refresh);window.addEventListener('focus',refresh);return()=>{alive=false;clearInterval(timer);window.removeEventListener('online',refresh);window.removeEventListener('offline',refresh);window.removeEventListener('focus',refresh);};},[]);
  const [lastWorkCheck,setLastWorkCheck]=useState<number|null>(null);
- const [work,setWork]=useState<WorkOverview>({inventoryAvailable:true,groups:[]});
+ const [work,setWork]=useState<WorkOverview>({inventoryAvailable:false,groups:[]});
  const [workTarget,setWorkTarget]=useState<{taskId?:string;sessionId?:string}|null>(()=>{const taskId=new URLSearchParams(location.search).get('task');return taskId?{taskId}:null;});
  const closeWork=useCallback(()=>{setWorkTarget(null);const url=new URL(location.href);url.searchParams.delete('task');history.replaceState({},'',url);},[]);
  const [characterLooks,setCharacterLooks]=useState<{style:'cozy'|'original';looks:Record<string,number>}>({style:'cozy',looks:{}});
@@ -97,7 +104,7 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef}:{of
  const [consoleTask,setConsoleTask]=useState<BibilenTask|null>(null);
  const [showClaude,setShowClaude]=useState(false);
  const [sessionTarget,setSessionTarget]=useState<string|null>(()=>new URLSearchParams(location.search).get('session'));
- const openSession=(id:string)=>{setSessionTarget(id);setView('sessions');};
+ const openSession=(id:string)=>{setSessionTarget(id);setView('sessions');const url=new URL(location.href);url.searchParams.set('session',id);url.searchParams.delete('task');history.replaceState({},'',url);};
  const [showAppearance,setShowAppearance]=useState(false);
  const [notice,setNotice]=useState('');
  const [theme,setTheme]=useState<Theme>(()=>(localStorage.getItem(workspaceStorage('bb-theme')) as Theme)||'studio');
@@ -118,12 +125,13 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef}:{of
  },[composer,consoleTask,showAppearance,showPlan,showReceptionPreview,showClaude,workTarget,closeWork,showNotifications,showIntegrations]);
  useEffect(()=>{let alive=true;let pending=false;const refresh=async()=>{if(pending)return;pending=true;try{const value=await getWorkOverview();if(alive){setWork(value);setLastWorkCheck(Date.now());}}catch{if(alive)setWork({inventoryAvailable:false,groups:[]});}finally{pending=false;}};void refresh();const timer=setInterval(refresh,5000);return()=>{alive=false;clearInterval(timer);};},[]);
  useEffect(()=>syncWorkPresence(office,work.groups),[office,work,bindings]);
- const reload=useCallback(()=>getState().then(value=>{setState(value);setStateAvailable(true);}).catch(()=>setStateAvailable(false)),[]);
- useEffect(()=>{reload();const timer=setInterval(reload,3000);const auth=()=>reload();window.addEventListener('bibilen-auth',auth);return()=>{clearInterval(timer);window.removeEventListener('bibilen-auth',auth);};},[reload]);
+ const statePending=useRef<Promise<void>|null>(null);
+ const reload=useCallback(()=>{if(statePending.current)return statePending.current;statePending.current=getState().then(value=>{setState(value);setStateAvailable(true);setLastStateCheck(Date.now());}).catch(()=>setStateAvailable(false)).finally(()=>{statePending.current=null;});return statePending.current;},[]);
+ useEffect(()=>{void reload();const refresh=()=>{if(document.visibilityState==='visible')void reload();};const timer=setInterval(refresh,3000);window.addEventListener('bibilen-auth',refresh);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{clearInterval(timer);window.removeEventListener('bibilen-auth',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};},[reload]);
  useEffect(()=>{const update=()=>setBindings(syncResidents(office,subagents,state.tasks,work));update();const timer=setInterval(update,1000);return()=>clearInterval(timer);},[office,subagents,state.tasks,work]);
  useEffect(()=>{for(let i=0;i<ROSTER.length;i++){const palette=characterLooks.looks[ROSTER[i].key];if(!Number.isInteger(palette))continue;const ch=office.characters.get(bindings.get(ROSTER[i].key)??residentId(i));if(ch){ch.palette=palette;ch.hueShift=0;}}},[office,bindings,characterLooks]);
  useEffect(()=>{const timer=setInterval(()=>setClock(Date.now()),60000);return()=>clearInterval(timer);},[]);
- const setView=(next:CommandView)=>{setViewState(next);const url=new URL(location.href);url.searchParams.set('view',next);history.replaceState({},'',url);};
+ const setView=(next:CommandView)=>{setViewState(next);const url=new URL(location.href);url.searchParams.set('view',next);if(next!=='sessions')url.searchParams.delete('session');history.replaceState({},'',url);};
  const requestTask=(role='chief')=>{if(!state.operator){setNotice('İzleyici erişiminde görev verilemez.');return;}setComposer(role);};
  const changeTheme=(next:Theme)=>{const layout=makeLayout(next);office.rebuildFromLayout(layout);onLayout(layout);transport.send({type:'saveLayout',layout});setTheme(next);localStorage.setItem(workspaceStorage('bb-theme'),next);};
  const changeAmbience=(next:Ambience)=>{setAmbience(next);localStorage.setItem(workspaceStorage('bb-ambience'),next);};
@@ -134,20 +142,22 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef}:{of
  const focusedTrace=memberFocus?work.groups.find(g=>g.sessionId===memberFocus.sessionId):undefined;
  const focusedMember=focusedTrace?.members.find(m=>m.id===memberFocus?.memberId);
  const focusedPlace=memberFocus?liveMemberLocation(office,memberFocus.sessionId,memberFocus.memberId):undefined;
- const working=workingCount(state.tasks,work.inventoryAvailable?work.groups:[]);
+ const working=workingCount(stateAvailable?state.tasks:[],work.inventoryAvailable?work.groups:[]);
  const active=state.tasks.filter(t=>!['completed','failed','stopped'].includes(t.status));
- const waitingLive=waitingCount(state.tasks,work.inventoryAvailable?work.groups:[]);
+ const waitingLive=waitingCount(stateAvailable?state.tasks:[],work.inventoryAvailable?work.groups:[]);
  const queued=active.filter(t=>['queued','starting'].includes(t.status));
  const recentEvents=state.events.slice(0,5);
  const connectedSessions=new Set([...office.characters.values()].filter(ch=>!isResident(ch.id)&&!ch.isSubagent&&ch.matrixEffect!=='despawn').map(ch=>office.agentSessionIds.get(ch.id)).filter(Boolean)).size;
  const selectedRole=selected===null?null:ROSTER[selected];
  const liveByRole=useMemo(()=>new Map(active.map(t=>[t.role,t])),[active]);
+ const synchronized=online&&officeConnection==='connected'&&stateAvailable&&work.inventoryAvailable&&!!lastStateCheck&&!!lastWorkCheck&&healthClock-lastStateCheck<30000&&healthClock-lastWorkCheck<30000;
  const hour=new Date(clock).getHours();
  const resolvedAmbience=ambience==='auto'?(hour>=19||hour<7?'night':'day'):ambience;
  const phaseLabel=(task:BibilenTask)=>task.status==='waiting'?'Yanıtla':task.stage==='researching'?'Araştırıyor':task.stage==='coding'?'Kodluyor':task.stage==='testing'?'Test ediyor':task.status==='queued'?'Sırada':'Çalışıyor';
  return <div className={`bb-shell bb-view-${view} bb-ambience-${resolvedAmbience} ${fullOffice?'bb-full-office':'bb-hybrid'}`}>
-  <header className="bb-masthead"><button className="bb-brand" aria-label="Agent House ana sayfa" onClick={()=>setView('office')}><span className="bb-mark">AH</span><span><strong>Agent House</strong><small>AJAN KOMUTA MERKEZİ</small></span></button><div className="bb-operation-strip"><span><i className="running"/>{working} çalışıyor</span><span><i className="waiting"/>{waitingLive} bekliyor</span><span><i/>{queued.length} sırada</span></div><nav><span className="bb-access-role">{state.operator?'Yönetici':'İzleyici'}</span><button className="bb-mobile-action" onClick={()=>setShowIntegrations(true)} aria-label="Kullanım ve bağlantılar" title="Kullanım ve API bağlantıları"><Icon name="link"/></button><button className="bb-mobile-action" onClick={()=>setShowNotifications(true)} aria-label="Bildirim merkezi" title="Bildirimler"><Icon name="bell"/></button><button className="bb-mobile-action" onClick={()=>setShowAppearance(true)} aria-label="Ofis ayarları" title="Ofis ayarları"><Icon name="settings"/></button><button disabled={!state.operator} className="bb-primary" aria-label="Yeni görev" onClick={()=>requestTask()}><Icon name="plus"/><span>Yeni görev</span></button></nav></header>
+  <header className="bb-masthead"><button className="bb-brand" aria-label="Agent House ana sayfa" onClick={()=>setView('office')}><span className="bb-mark">AH</span><span><strong>Agent House</strong><small>AJAN KOMUTA MERKEZİ</small></span></button><div className="bb-operation-strip"><span><i className="running"/>{working} çalışıyor</span><span><i className="waiting"/>{waitingLive} bekliyor</span><span><i/>{queued.length} sırada</span></div><nav><span className="bb-access-role">{state.operator?'Yönetici':'İzleyici'}</span><button className="bb-mobile-action" onClick={()=>setShowIntegrations(true)} aria-label="Kullanım ve bağlantılar" title="Kullanım ve API bağlantıları"><Icon name="link"/></button><button className="bb-mobile-action" onClick={()=>setShowNotifications(true)} aria-label="Bildirim merkezi" title="Bildirimler"><Icon name="bell"/>{unread>0&&<b className="bb-unread-badge" aria-label={`${unread} okunmamış bildirim`}>{unread>99?'99+':unread}</b>}</button><button className="bb-mobile-action" onClick={()=>setShowAppearance(true)} aria-label="Ofis ayarları" title="Ofis ayarları"><Icon name="settings"/></button><button disabled={!state.operator} className="bb-primary" aria-label="Yeni görev" onClick={()=>requestTask()}><Icon name="plus"/><span>Yeni görev</span></button></nav></header>
   <ProjectSwitcher operator={state.operator}/>
+  <div className={`bb-sync-status ${synchronized?'ready':'pending'}`} role="status"><i/>{synchronized?'Canlı bağlantı · proje ve oturumlar güncel':!online?'İnternet bağlantısı yok · görünen bilgiler son kayıttan':officeConnection!=='connected'?'Ofis bağlantısı yenileniyor · kayıtlar korunuyor':'Eşitleme bekleniyor · canlı durum doğrulanıyor'}{!synchronized&&<button onClick={()=>{void reload();void getWorkOverview().then(v=>{setWork(v);setLastWorkCheck(Date.now());}).catch(()=>setWork({inventoryAvailable:false,groups:[]}));}}>Yeniden kontrol et</button>}</div>
   <aside className="bb-rail" aria-label="Ana bölümler">{([['office','Ana sayfa','home'],['operations','Operasyon','operations'],['tasks','Görevler','tasks'],['team','Ekip','team'],['sessions','Oturumlar','terminal'],['history','Geçmiş','history']] as const).map(([id,label,icon])=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>{setSessionTarget(null);setView(id);}}><Icon name={icon}/>{label}{id==='tasks'&&active.length>0&&<b>{active.length}</b>}</button>)}<button disabled={!state.operator} className="bb-rail-create" onClick={()=>requestTask()}><Icon name="plus"/>Yeni görev</button></aside>
   {view==='office'&&<>
    {!fullOffice&&<section className="bb-hybrid-summary"><header><div><button className="bb-operation-entry" onClick={()=>setView('operations')}>Operasyon Merkezi →</button><h1>{working?'Ekip çalışıyor':'Ekibe ne yaptıralım?'}</h1></div><button disabled={!state.operator} className="bb-primary" onClick={()=>requestTask()}><Icon name="plus"/><span>Görev</span></button></header><div className="bb-hybrid-counts"><span><i className="bb-dot running"/>{working} çalışıyor</span><span><i className="bb-dot waiting"/>{waitingLive} bekliyor</span><span>{queued.length} sırada</span></div><div className="bb-hybrid-current">{active.slice(0,2).map(t=><button key={t.id} onClick={()=>setView('tasks')}><i className={`bb-dot ${t.status}`}/><span><strong>{t.title}</strong><small>{ROSTER.find(r=>r.key===t.role)?.name??t.role} · {phaseLabel(t)}</small></span><b>→</b></button>)}{active.length===0&&<p>{working?`Claude CLI’de ${working} ajan çalışıyor. Ayrıntıları Operasyon Merkezi’nde görebilirsin.`:'Görevini yaz; Gökhan uygun uzmanlarla çalışmayı organize etsin.'}</p>}</div></section>}

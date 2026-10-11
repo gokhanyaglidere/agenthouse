@@ -2,14 +2,17 @@ import {scopedUrl,workspaceId} from './workspace.js';
 import type { BibilenTask,CommandState,Priority,ExecutionStatus } from './types.js';
 
 async function request<T>(path:string,init:RequestInit={}):Promise<T>{
+  const abort=new AbortController();const timeout=setTimeout(()=>abort.abort(),30000);
+  try{
   const response=await fetch(scopedUrl(`/bibilen/api/${path}`),{
-    ...init,
+    ...init,signal:init.signal??abort.signal,
     headers:{'Content-Type':'application/json',...init.headers},
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(body.error??'İşlem tamamlanamadı.');
   if(workspaceId&&body.context?.workspaceId&&body.context.workspaceId!==workspaceId)throw new Error('Sunucu başka bir projenin kaydını döndürdü.');
   return body as T;
+  }finally{clearTimeout(timeout);}
 }
 export const getState=()=>request<CommandState>('state');
 export const checkExecution=()=>request<{execution:ExecutionStatus}>('execution-check',{method:'POST'});
@@ -75,3 +78,7 @@ export const getSessionCatalog=()=>request<{sessions:import('./types.js').Catalo
 export const getCatalogTranscript=(key:string,before?:number)=>request<{messages:import('./types.js').ConversationMessage[];nextBefore:number|null}>(`session-catalog/${encodeURIComponent(key)}/transcript${before===undefined?'':`?before=${before}`}`);
 
 export const takeoverSession=(id:string)=>request<{session:import('./types.js').ClaudeSession}>(`sessions/${encodeURIComponent(id)}/takeover`,{method:'POST'});
+
+export interface BackupState{last:{id:string;at:number;files:number;bytes:number}|null;count:number;error:string|null;retention:number}
+export const getBackups=()=>request<BackupState>('backups');
+export const createBackup=()=>request<BackupState>('backups',{method:'POST'});

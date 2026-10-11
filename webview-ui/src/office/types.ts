@@ -171,6 +171,8 @@ export interface Character {
   id: number;
   /** Native transcript watchers can outlive their actual CLI session. */
   sessionHidden?: boolean;
+  /** All chief sessions stay inside the private CEO office. */
+  privateOffice?: boolean;
   state: CharacterState;
   dir: Direction;
   /** Pixel position */

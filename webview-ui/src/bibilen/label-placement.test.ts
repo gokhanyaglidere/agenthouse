@@ -1,0 +1,2 @@
+import {it,expect} from 'vitest';import {placeLabel,overlaps,type LabelBox} from './label-placement.js';
+it('keeps nearby agent labels readable and inside the visible office',()=>{const boxes:LabelBox[]=[];for(const x of [70,78,85])boxes.push(placeLabel(x,40,90,34,{width:390,height:500},boxes));for(const [i,box]of boxes.entries()){expect(box.x).toBeGreaterThanOrEqual(0);expect(box.y).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(boxes.slice(0,i).some(other=>overlaps(box,other))).toBe(false);}});

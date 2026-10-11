@@ -9,7 +9,11 @@ Build: `npm run build --prefix webview-ui`, then `node prepare-ui.mjs`.
 Restart the existing LaunchAgent; never start a second gateway on port 3100.
 The LaunchAgent supplies `BIBILEN_DEFAULT_CWD` for the existing default project.
 Source-only changes belong here; the old `bibilen/tools/pixel-office` is the migration snapshot.
-No Git remote or publication was created.
+Source repository: https://github.com/gokhanyaglidere/agenthouse. Runtime records and credentials are excluded from Git.
+
+A fresh installation defaults to its own application directory; an existing installation keeps its registered default project. Set `BIBILEN_DEFAULT_CWD` explicitly to choose a project directory.
+
+Daily private metadata backups and interaction/recovery checks are documented in [the acceptance record](design/platinum-acceptance-2026-10-11.md).
 
 ## Existing implementation reference
 

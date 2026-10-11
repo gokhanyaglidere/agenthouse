@@ -1,6 +1,6 @@
 import type { OfficeState } from '../office/engine/officeState.js';
 import { ROSTER, residentId, isResident } from './roster.js';
-import { insideCeo } from './layouts.js';
+import { insideCeo, COZY_REVISION } from './layouts.js';
 import { COZY_CHARACTER_COUNT } from '../office/sprites/cozyCharacters.js';
 import { TILE_SIZE, CharacterState } from '../office/types.js';
 import type {WorkOverview} from './types.js';
@@ -24,7 +24,7 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
     const taskRole=!ch.isSubagent && sessionId ? tasks.find(t=>t.sessionId && (sessionId===t.sessionId || (/^[0-9a-f]{8}$/i.test(t.sessionId) && sessionId.startsWith(t.sessionId+'-'))))?.role : undefined;
     const explicit=roleFromLabel(subagents.find(s=>s.id===ch.id)?.label ?? ch.agentName ?? '');
     const key = (taskRole && ROSTER.some(r=>r.key===taskRole) ? taskRole : undefined) ?? explicit ?? office.agentRoleKeys.get(ch.id) ?? (ch.id>0 && !ch.isSubagent ? 'chief' : undefined);
-    if(key) office.agentRoleKeys.set(ch.id,key);
+    if(key){office.agentRoleKeys.set(ch.id,key);ch.privateOffice=key==='chief'&&office.getLayout().layoutRevision===COZY_REVISION;}
     if(key && !bound.has(key)) bound.set(key,ch.id);
   }
   ROSTER.forEach((role,i)=>{
@@ -34,7 +34,10 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
       if(ghost){if(ghost.seatId){const seat=office.seats.get(ghost.seatId); if(seat)seat.assigned=false;}office.characters.delete(id);}
       const live=office.characters.get(bound.get(role.key)!);
       if(live){live.agentName=role.name;live.palette=i%COZY_CHARACTER_COUNT;live.hueShift=0;}
-      if(live && live.seatId!==`seat-${role.key}`) office.reassignSeat(live.id,`seat-${role.key}`);
+      if(live && live.seatId!==`seat-${role.key}`){
+        if(role.key==='chief'){for(const other of office.characters.values())if(other.id!==live.id&&other.seatId==='seat-chief'){other.seatId=null;other.path=[];other.state=CharacterState.IDLE;const seat=office.seats.get('seat-chief');if(seat)seat.assigned=false;}}
+        office.reassignSeat(live.id,`seat-${role.key}`);
+      }
       // A specialist may be spawned next to its parent in the locked CEO room.
       // Put it at its own workstation; the closed door never becomes walkable.
       if(live && (role.key==='chief'?!insideCeo(live.tileCol,live.tileRow):insideCeo(live.tileCol,live.tileRow))){
@@ -58,6 +61,19 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
   // Several genuine CLI conversations may share the chief role. Distinguish
   // their sessions instead of presenting different states as one person.
   const chiefs=[...office.characters.values()].filter(ch=>!isResident(ch.id)&&!ch.sessionHidden&&ch.matrixEffect!=='despawn'&&office.agentRoleKeys.get(ch.id)==='chief');
-  for(const ch of chiefs){const session=office.agentSessionIds.get(ch.id);ch.agentName=chiefs.length>1&&session?`Gökhan · ${session.slice(0,4)}`:'Gökhan';}
+  for(const ch of chiefs){
+    if(ch.privateOffice){
+      const current=ch.seatId?office.seats.get(ch.seatId):undefined;
+      if(!current||!insideCeo(current.seatCol,current.seatRow)){
+        const spare=[...office.seats.values()].find(s=>!s.assigned&&insideCeo(s.seatCol,s.seatRow));
+        if(spare){office.reassignSeat(ch.id,spare.uid);ch.tileCol=spare.seatCol;ch.tileRow=spare.seatRow;ch.dir=spare.facingDir;}
+        else{if(current)current.assigned=false;ch.seatId=null;const place=office.walkableTiles.filter(t=>insideCeo(t.col,t.row)&&![...office.characters.values()].some(other=>other.id!==ch.id&&other.tileCol===t.col&&other.tileRow===t.row)).sort((a,b)=>Math.min(Math.hypot(a.col-11,a.row-10),Math.hypot(a.col-12,a.row-13))-Math.min(Math.hypot(b.col-11,b.row-10),Math.hypot(b.col-12,b.row-13)))[0];if(place){ch.tileCol=place.col;ch.tileRow=place.row;}}
+        ch.x=(ch.tileCol+.5)*TILE_SIZE;ch.y=(ch.tileRow+.5)*TILE_SIZE;ch.path=[];ch.state=ch.isActive?CharacterState.TYPE:CharacterState.IDLE;
+      }
+      if(!insideCeo(ch.tileCol,ch.tileRow)){
+        const place=office.walkableTiles.find(t=>insideCeo(t.col,t.row));if(place){ch.tileCol=place.col;ch.tileRow=place.row;ch.x=(place.col+.5)*TILE_SIZE;ch.y=(place.row+.5)*TILE_SIZE;ch.path=[];}
+      }
+    }
+    const session=office.agentSessionIds.get(ch.id);ch.agentName=chiefs.length>1&&session?`Gökhan · ${session.slice(0,4)}`:'Gökhan';}
   return bound;
 }

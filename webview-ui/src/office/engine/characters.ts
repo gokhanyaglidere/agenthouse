@@ -99,7 +99,7 @@ export function updateCharacter(
   blockedTiles: Set<string>,
 ): void {
   if(ch.isActive){ch.ambientTarget=undefined;ch.ambientPause=0;}
-  if (ch.seatId === 'seat-chief') {
+  if (ch.seatId === 'seat-chief' || ch.privateOffice) {
     const inside = insideCeo;
     walkableTiles = walkableTiles.filter(t => inside(t.col,t.row));
     blockedTiles = new Set(blockedTiles);

@@ -1,3 +1,4 @@
+import {placeLabel,type LabelBox} from '../../bibilen/label-placement.js';
 import { useCallback, useEffect, useRef } from 'react';
 
 import {
@@ -302,21 +303,28 @@ export function OfficeCanvas({
         // the cropped mobile office. Labels do not intercept taps or drags.
         ctx.save();
         const dpr = window.devicePixelRatio || 1;
-        const labelSize=Math.min(11*dpr,Math.max(5*dpr,zoom*6));
+        const labelSize=Math.min(12*dpr,Math.max(9*dpr,zoom*6));
+        const labelBoxes:LabelBox[]=[];
         ctx.font = `600 ${labelSize}px system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         for (const ch of officeState.getCharacters()) {
           const name=ch.agentName??ch.workName;
           if (!name) continue;
-          const x = offsetX + ch.x * zoom;
-          const y = offsetY + (ch.y - 30) * zoom;
+          const anchorX = offsetX + ch.x * zoom;
+          const anchorY = offsetY + (ch.y - 30) * zoom;
+          if(anchorX<0||anchorX>canvas.width||anchorY<-30*zoom||anchorY>canvas.height)continue;
           const maxWidth=Math.max(labelSize*7,52*zoom);
           const lines:string[]=[];let line='';
           for(const word of name.split(' ')){const next=line?line+' '+word:word;if(line&&ctx.measureText(next).width>maxWidth){lines.push(line);line=word;}else line=next;}
           if(line)lines.push(line);
           const width = Math.max(...lines.map(text=>ctx.measureText(text).width)) + labelSize;
           const height=lines.length*labelSize*1.3+labelSize*.4;
+          const caption=ch.workBadge??(ch.ambientTarget&&!ch.isActive?((ch.ambientPause??0)>0?ch.ambientTarget.label:'Molaya gidiyor'):null);
+          const totalWidth=Math.max(width,caption?ctx.measureText(caption).width+labelSize:0);
+          const box=placeLabel(anchorX,anchorY,totalWidth,height+(caption?labelSize*1.7:0),canvas,labelBoxes);labelBoxes.push(box);
+          const x=box.x+box.width/2,y=box.y+height;
+          if(Math.abs(x-anchorX)>4||Math.abs(y-anchorY)>4){ctx.strokeStyle='#d9ddc799';ctx.lineWidth=dpr;ctx.beginPath();ctx.moveTo(anchorX,anchorY+4*zoom);ctx.lineTo(x,y);ctx.stroke();}
           ctx.fillStyle = '#354536ed';
           ctx.fillRect(x - width / 2, y-height, width, height);
           ctx.fillStyle = '#fff1d5';

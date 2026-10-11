@@ -1,3 +1,4 @@
+import {StateBackup} from './state-backup.mjs';
 import {SessionCatalog} from './session-catalog.mjs';
 import {installProjectProfiles} from './project-onboarding.mjs';
 import {Admission,ScopedPush,SlackCoordinator,workspaceScope} from './workspace-services.mjs';
@@ -33,7 +34,9 @@ const here=dirname(fileURLToPath(import.meta.url));
 const projects=new ProjectRegistry();
 const gatewayPort=Number(process.env.BIBILEN_GATEWAY_PORT??3100);
 const nativePort=Number(process.env.BIBILEN_NATIVE_PORT??3101);
-const defaultWorkspace=projects.register({name:'BiBilen',path:process.env.BIBILEN_DEFAULT_CWD??resolve(here,'../..'),legacy:true});
+const registeredDefault=projects.data.workspaces.find(w=>w.id===projects.data.defaultWorkspaceId);
+const defaultRoot=process.env.BIBILEN_DEFAULT_CWD??registeredDefault?.root??here;
+const defaultWorkspace=projects.register({name:'Agent House',path:defaultRoot,legacy:!registeredDefault||registeredDefault.root===defaultRoot});
 const executionContext=projects.context(defaultWorkspace.id);
 const cwd=executionContext.cwd;
 // LaunchAgent's minimal PATH must also reach background Claude hooks and tools.
@@ -42,6 +45,9 @@ const claudePath=process.env.BIBILEN_CLAUDE_PATH??(existsSync('/opt/homebrew/bin
 const executionHealth=new ExecutionHealth(claudePath,join(homedir(),'.pixel-agents','bibilen-execution-health.json'));
 const accessPolicy=new AccessPolicy();
 const accountPush=new PushManager();
+const stateBackup=new StateBackup(join(homedir(),'.pixel-agents'));
+try{stateBackup.create({daily:true});}catch{}
+const backupTimer=setInterval(()=>{try{stateBackup.create({daily:true});}catch{}},3600000);
 const admission=new Admission({limit:3});
 const slackCoordinator=new SlackCoordinator();
 const runtimes=new Map();
@@ -189,6 +195,7 @@ async function handleApi(req,res,url){
       const items=await Promise.all(projects.data.workspaces.map(async w=>{const r=runtimes.get(w.id);const p=projects.data.projects.find(p=>p.id===w.projectId);let work=null;try{if(r)work=await r.workTracker.overview();}catch{}return {workspaceId:w.id,projectId:w.projectId,name:p.name,available:!!r&&!r.nativeFailed,tasks:r?r.taskManager.publicState(operator).tasks:[],inventoryAvailable:work?.inventoryAvailable??false,connectedSessions:work?.totalLiveSessions??work?.groups.length??0,workingMembers:work?.groups.flatMap(g=>g.members.filter(m=>m.liveState==='running').map(m=>({sessionId:g.sessionId,id:m.id,label:m.label,role:m.role})))??[]};}));
       sendJson(res,200,{items,admission:admission.state()});return true;
     }
+    if(url.pathname==='/bibilen/api/backups'){if(!operator){sendJson(res,403,{error:'Yedekleri yalnızca yönetici görebilir.'});return true;}if(req.method==='POST')stateBackup.create();sendJson(res,200,stateBackup.state());return true;}
     const runtime=getRuntime(workspaceScope(url,req.headers,defaultWorkspace.id));
     const {context:executionContext,cwd,taskManager,sessionManager,workTracker,appearance,integrations,slackAlarms,dailyReports,operations,pushManager}=runtime;
     if(req.method==='GET'&&url.pathname==='/bibilen/api/roles'){sendJson(res,200,{roles:executionContext.roles,projectName:executionContext.projectName,legacy:executionContext.legacy});return true;}
@@ -324,5 +331,5 @@ function connectPresence(runtime){
 }
 const presenceTimer=setInterval(()=>{for(const runtime of runtimes.values())void recoverPresence(runtime);},5000);
 server.listen(gatewayPort,'127.0.0.1',()=>console.log('BiBilen office gateway: http://127.0.0.1:3100 (private Tailscale access)'));
-function stop(){if(stopping)return;stopping=true;clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
+function stop(){if(stopping)return;stopping=true;clearInterval(backupTimer);clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
 process.on('SIGTERM',stop);process.on('SIGINT',stop);

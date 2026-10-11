@@ -190,3 +190,15 @@ it('refines old furniture placement while preserving user decoration and occupie
  const next=refineSavedLayout(old);expect(next.furniture.find(f=>f.uid===printer.uid)).toMatchObject({col:11,row:49});expect(next.furniture.find(f=>f.uid===custom.uid)).toBe(custom);expect(old.furniture.find(f=>f.uid===printer.uid)).toMatchObject({col:12,row:51});
  old.furniture.push({...printer,uid:'owner-equipment',col:11,row:49});expect(refineSavedLayout(old).furniture.find(f=>f.uid===printer.uid)).toMatchObject({col:12,row:51});
 });
+
+it('keeps every concurrent chief session in the private CEO room without borrowing another team desk',()=>{
+ const office=new OfficeState(makeLayout('studio'));
+ for(const id of [501,502,503]){office.addAgent(id);office.agentSessionIds.set(id,'session-'+id);}
+ syncResidents(office);
+ for(const id of [501,502,503]){const ch=office.characters.get(id)!;expect(ch.privateOffice).toBe(true);expect(insideCeo(ch.tileCol,ch.tileRow)).toBe(true);if(ch.seatId){const seat=office.seats.get(ch.seatId)!;expect(insideCeo(seat.seatCol,seat.seatRow)).toBe(true);}}
+ office.setAgentActive(502,false);office.setAgentActive(503,false);office.setAgentActive(501,true);syncResidents(office);
+ expect(office.characters.get(501)?.seatId).toBe('seat-chief');
+ const occupied=[501,502,503].map(id=>office.characters.get(id)!.seatId).filter(Boolean);expect(new Set(occupied).size).toBe(occupied.length);
+ for(let i=0;i<500;i++)office.update(.1);
+ expect([501,502,503].every(id=>{const ch=office.characters.get(id)!;return insideCeo(ch.tileCol,ch.tileRow);})).toBe(true);
+});

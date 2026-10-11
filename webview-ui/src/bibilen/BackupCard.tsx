@@ -1,0 +1,7 @@
+import {useEffect,useState} from 'react';
+import {getBackups,createBackup} from './api.js';
+export function BackupCard(){
+ const [state,setState]=useState<Awaited<ReturnType<typeof getBackups>>|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{let alive=true;void getBackups().then(value=>{if(alive)setState(value);}).catch(()=>{if(alive)setError('Yedek durumu okunamadı.');});return()=>{alive=false;};},[]);
+ return <section className="bb-backup-card"><h3>Kayıt güvenliği</h3><p>{state?.last?`Son yedek: ${new Date(state.last.at).toLocaleString('tr-TR')} · ${state.last.files} dosya`:'Henüz doğrulanmış yedek yok.'}</p><p className="bb-work-note">Günlük otomatik yedek · son 14 kopya. Proje kayıtları, görevler, bildirimler ve ofis ayarları bu bilgisayarda saklanır. Claude konuşma dosyaları ve hesap anahtarları ayrı tutulur. Geri yükleme önce ayrı klasörde doğrulanır.</p><button disabled={busy} onClick={async()=>{setBusy(true);setError('');try{setState(await createBackup());}catch{setError('Yedek oluşturulamadı; mevcut kayıtlar korunuyor.');}finally{setBusy(false);}}}>{busy?'Yedekleniyor…':'Şimdi yedekle'}</button>{(error||state?.error)&&<p role="alert" className="bb-error">{error||state?.error}</p>}</section>;
+}

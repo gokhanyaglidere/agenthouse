@@ -1,3 +1,4 @@
+import {useDraft} from './drafts.js';
 import {DictationButton} from './DictationButton.js';
 import {Icon} from './Icon.js';
 import {useState} from 'react';
@@ -6,9 +7,9 @@ import {ROSTER} from './roster.js';
 import type {Priority,ExecutionStatus} from './types.js';
 import {ConnectionStatus} from './ConnectionStatus.js';
 export function TaskComposer({defaultRole='chief',close,onCreated,execution,onCheck}:{defaultRole?:string;close:()=>void;onCreated:()=>void;execution?:ExecutionStatus;onCheck:()=>void}){
- const [title,setTitle]=useState('');const [prompt,setPrompt]=useState('');const [role,setRole]=useState(defaultRole);const [priority,setPriority]=useState<Priority>('normal');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
+ const [title,setTitle]=useDraft('new-task-title');const [prompt,setPrompt]=useDraft('new-task-prompt');const [role,setRole]=useState(defaultRole);const [priority,setPriority]=useState<Priority>('normal');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  const groups=[...ROSTER].reduce((map,role)=>{const list=map.get(role.group)??[];list.push(role);map.set(role.group,list);return map;},new Map<string,Array<(typeof ROSTER)[number]>>());
- return <div className="bb-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)close();}}><form className="bb-composer" role="dialog" aria-modal="true" aria-label="Yeni görev" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await createTask({title,prompt,role,priority});onCreated();close();}catch(err){setError(err instanceof Error?err.message:'Görev başlatılamadı.');}finally{setBusy(false);}}}>
+ return <div className="bb-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)close();}}><form className="bb-composer" role="dialog" aria-modal="true" aria-label="Yeni görev" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await createTask({title,prompt,role,priority});setTitle('');setPrompt('');onCreated();close();}catch(err){setError(err instanceof Error?err.message:'Görev başlatılamadı.');}finally{setBusy(false);}}}>
   <header><div><span className="bb-kicker">Yeni görev</span><h2>Ekibe iş ver</h2></div><button type="button" onClick={close} aria-label="Kapat"><Icon name="close"/></button></header>
   {execution?.status!=='ready'&&<ConnectionStatus value={execution} onChange={onCheck}/>}
   <label><span>Görev adı</span><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Örn. ödeme akışındaki hatayı düzelt" maxLength={100} autoFocus required/></label>
