@@ -212,3 +212,14 @@ it('groups default CEO visitor seats without moving owner-customized furniture',
  const custom=old.furniture.find(f=>f.uid==='ceo-chair')!;custom.col=11;
  expect(refineSavedLayout(old).furniture.find(f=>f.uid===custom.uid)).toMatchObject({col:11,row:8});
 });
+
+it('upgrades default studio and game groups while preserving owner changes',()=>{
+ const old=makeLayout('studio');old.layoutRevision=117;
+ for(const f of old.furniture){if(f.uid==='studio-camera'){f.col=8;f.row=28;}if(f.uid==='studio-light'){f.col=13;f.row=27;}if(f.uid==='studio-chair'){f.col=5;f.row=28;}}
+ old.furniture=old.furniture.filter(f=>f.uid!=='game-bench');old.furniture.push({uid:'game-sofa',type:'BB_SOFA',col:59,row:53},{uid:'game-table',type:'BB_COFFEE_TABLE',col:62,row:53},{uid:'game-plant',type:'BB_MONSTERA',col:71,row:51});
+ const upgraded=refineSavedLayout(old);
+ expect(upgraded.furniture.find(f=>f.uid==='studio-camera')).toMatchObject({col:10,row:29});
+ expect(upgraded.furniture.some(f=>f.uid==='game-sofa')).toBe(false);expect(upgraded.furniture.find(f=>f.uid==='game-bench')).toMatchObject({col:69,row:52});
+ old.furniture.find(f=>f.uid==='studio-camera')!.col=6;old.furniture.find(f=>f.uid==='game-table')!.col=63;
+ const customized=refineSavedLayout(old);expect(customized.furniture.find(f=>f.uid==='studio-camera')!.col).toBe(6);expect(customized.furniture.some(f=>f.uid==='game-sofa')).toBe(true);
+});

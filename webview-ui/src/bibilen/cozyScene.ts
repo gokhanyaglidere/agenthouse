@@ -22,16 +22,20 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   const brick=(col:number,row:number,w:number,h:number)=>{
    const px=col*16,py=row*16,pw=w*16,ph=h*16;
    c.save();c.beginPath();c.rect(px,py,pw,ph);c.clip();
-   rect(px,py,pw,ph,'#b98e66');
-   // Small running-bond bricks, one grid shared by every joined path.
-   for(let yy=Math.floor(py/4)*4;yy<py+ph;yy+=4){
-    rect(px,yy,pw,1,'#927250');
-    for(let xx=Math.floor(px/8)*8+((yy/4)%2?4:0);xx<px+pw;xx+=8){
-     rect(xx,yy,1,4,'#927250');rect(xx+2,yy+1,4,1,'#d7b486');
+   rect(px,py,pw,ph,'#8d8f70');
+   // Larger limestone pieces with staggered seams and restrained variation.
+   for(let yy=Math.floor(py/12)*12;yy<py+ph;yy+=12){
+    for(let xx=Math.floor(px/20)*20+((yy/12)%2?10:0)-20;xx<px+pw;xx+=20){
+     const seed=Math.abs((xx*17+yy*23)%5),shade=['#c9b997','#c1b291','#d2c4a6','#beb397','#cec0a0'][seed];
+     rect(xx+1,yy+1,18,10,shade);rect(xx+2,yy+1,16,1,'#e4d8bc');rect(xx+1,yy+10,18,1,'#a89d82');
+     if(seed===2){rect(xx+1,yy+1,2,1,'#8d8f70');rect(xx+18,yy+10,1,1,'#8d8f70');}
     }
    }
    c.restore();
   };
+  // Clip the whole connected garden route once, rounding exposed ends/junctions.
+  const gardenPaths=[...EXTERIOR_APPROACHES.map(p=>({col:p.left,row:p.top,w:p.right-p.left+1,h:p.bottom-p.top+1})),...GARDEN_PAVING,GARDEN_TERRACE];
+  const gardenPath=()=>{c.beginPath();for(const p of gardenPaths)c.roundRect(p.col*16,p.row*16,p.w*16,p.h*16,5);};
   // One enclosed, continuous limestone hallway slab.
   const bl=BUILDING.left*16,bt=BUILDING.top*16,bw=(BUILDING.right-BUILDING.left+1)*16,bh=(BUILDING.bottom-BUILDING.top+1)*16;
   rect(bl+8,bt+8,bw+8,bh+12,'#40513a55');
@@ -57,6 +61,11 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
     }
    }
   }
+  // Dedicated filming bay below editing workstations, not random loose props.
+  rect(9*16,26*16,5*16,3*16,'#718179');
+  rect(9*16+2,26*16+2,5*16-4,12,'#ddd9c4');
+  for(let dx=4;dx<78;dx+=6)rect(9*16+dx,26*16+2,1,12,'#aaa997');
+  rect(9*16+3,26*16+15,5*16-6,3*16-18,'#88958b');
   for(const r of ROOM_RUGS)prop(r.type,r.col,r.row,r.w*16,r.h*16);
   // Garden is below the exterior facade, not between working rooms.
   for(const room of COZY_ROOMS.filter(r=>r.outdoor)){
@@ -70,9 +79,13 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    rect(l,t,w,7,'#536b43');rect(l,t,5,h,'#506c43');rect(l+w-5,t,5,h,'#506c43');rect(l,t+h-7,w,7,'#536b43');
    for(let xx=l+12;xx<l+w;xx+=32){rect(xx,t,3,10,'#8d744d');rect(xx,t+h-10,3,10,'#8d744d');}
   }
-  for(const p of EXTERIOR_APPROACHES)brick(p.left,p.top,p.right-p.left+1,p.bottom-p.top+1);
-  for(const p of GARDEN_PAVING)brick(p.col,p.row,p.w,p.h);
-  brick(GARDEN_TERRACE.col,GARDEN_TERRACE.row,GARDEN_TERRACE.w,GARDEN_TERRACE.h);
+  c.save();gardenPath();c.clip();brick(0,56,77,21);c.restore();
+  // Exposed edges only: shared path seams are never outlined as separate slabs.
+  c.save();gardenPath();c.clip();
+  const onPath=(px:number,py:number)=>gardenPaths.some(p=>px>=p.col*16&&px<(p.col+p.w)*16&&py>=p.row*16&&py<(p.row+p.h)*16);
+  c.fillStyle='#d8bc90';
+  for(let py=56*16;py<75*16;py++)for(let px=0;px<77*16;px++)if(onPath(px,py)&&(!onPath(px-1,py)||!onPath(px+1,py)||!onPath(px,py-1)||!onPath(px,py+1)))c.fillRect(px,py,1,1);
+  c.restore();
   // A terrace and a woodland bed, rather than loose pots along blank grass.
   for(let col=4;col<37;col+=4)prop('BB_HEDGE',col,73,60,22);
   for(let col=40;col<73;col+=4)prop('BB_HEDGE',col,73,60,22);
@@ -168,6 +181,12 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
 
    }
 
+   if(index===8){
+  // Warm game-room accents: cue rack and score display on the back wall.
+  rect(59*16,48*16+2,64,23,'#514a50');rect(59*16+2,48*16+4,60,18,'#c6b397');
+  c.font='bold 7px monospace';c.fillStyle='#4d6557';c.textAlign='center';c.fillText('BİLARDO  00 : 00',61*16,48*16+15);
+  for(let i=0;i<3;i++){rect((64*16)+i*3,48*16+4,1,27,'#c3a373');rect((64*16)+i*3,48*16+4,1,3,'#697f79');}
+   }
   }
   // Reception brand belongs directly above the actual welcome counter.
   const sx=41*16,sy=44*16-10;

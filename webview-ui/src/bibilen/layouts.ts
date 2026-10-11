@@ -3,7 +3,7 @@ import {ROSTER} from './roster.js';
 import {getPlacementBlockedTiles} from '../office/layout/layoutSerializer.js';
 
 export type Theme='studio'|'night'|'garden';
-export const COZY_REVISION=117;
+export const COZY_REVISION=118;
 export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
  const printer=layout.furniture.find(f=>f.uid==='finance-printer');
  let furniture=layout.furniture;
@@ -18,6 +18,19 @@ export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
   const proposed=furniture.map(f=>{const d=defaults.find(d=>d.uid===f.uid);return d?{...f,...d.next}:f;});
   const other=getPlacementBlockedTiles(furniture.filter(f=>!defaults.some(d=>d.uid===f.uid)));
   if([...getPlacementBlockedTiles(proposed.filter(f=>defaults.some(d=>d.uid===f.uid)))].every(tile=>!other.has(tile)))furniture=proposed;
+ }
+ if(layout.layoutRevision===117){
+  const upgrades=[
+   {old:[['studio-camera',8,28],['studio-light',13,27],['studio-chair',5,28]],next:[{uid:'studio-camera',type:'BB_CAMERA',col:10,row:29},{uid:'studio-light',type:'BB_SOFTBOX',col:7,row:27},{uid:'studio-chair',type:'BB_ARMCHAIR',col:10,row:27}]},
+   {old:[['game-sofa',59,53],['game-table',62,53],['game-plant',71,51]],next:[{uid:'game-bench',type:'BB_BENCH',col:69,row:52}]},
+  ];
+  for(const group of upgrades){
+   if(!group.old.every(([uid,col,row])=>furniture.some(f=>f.uid===uid&&f.col===col&&f.row===row)))continue;
+   const remaining=furniture.filter(f=>!group.old.some(([uid])=>uid===f.uid));
+   const occupied=getPlacementBlockedTiles(remaining);
+   if(group.next.some(f=>remaining.some(old=>old.uid===f.uid))||[...getPlacementBlockedTiles(group.next)].some(tile=>occupied.has(tile)))continue;
+   furniture=[...remaining,...group.next];
+  }
  }
  return {...layout,furniture,layoutRevision:COZY_REVISION};
 }
@@ -135,7 +148,7 @@ export function makeLayout(theme:Theme):OfficeLayout {
   ['ceo-sofa','BB_ARMCHAIR',5,11],['ceo-table','BB_COFFEE_TABLE',7,11],['ceo-chair','BB_ARMCHAIR',9,11],['ceo-plant','BB_MONSTERA',13,11],
   ['platform-board','BB_WHITEBOARD',26,3],['delivery-board','BB_EDITORIAL_BOARD',45,3],
   ['technical-board','BB_ANALYTICS_BOARD',64,3],['content-board','BB_EDITORIAL_BOARD',26,19],['growth-map','BB_SEARCH_MAP',45,19],
-  ['studio-board','BB_EDITORIAL_BOARD',6,19],['studio-camera','BB_CAMERA',8,28],['studio-light','BB_SOFTBOX',13,27],['studio-chair','BB_ARMCHAIR',5,28],
+  ['studio-board','BB_EDITORIAL_BOARD',6,19],['studio-camera','BB_CAMERA',10,29],['studio-light','BB_SOFTBOX',7,27],['studio-chair','BB_ARMCHAIR',10,27],
   ['marketing-board','BB_EDITORIAL_BOARD',49,36],['marketing-plant','BB_MONSTERA',52,39],
   ['rest-sofa','BB_SOFA',59,21],['rest-chair','BB_ARMCHAIR',65,21],['rest-table','BB_COFFEE_TABLE',62,22],['rest-plant','BB_FLOWERS',71,23],
   ['sales-board','BB_EDITORIAL_BOARD',59,27],['sales-visitor','BB_ARMCHAIR',65,29],['sales-table','BB_COFFEE_TABLE',67,29],['sales-flowers','BB_FLOWERS',71,30],
@@ -147,7 +160,7 @@ export function makeLayout(theme:Theme):OfficeLayout {
   ['accounting-board','BB_NOTICE',23,48],
   ['reception-counter','BB_COUNTER',41,46],['reception-sofa','BB_SOFA',49,48],['reception-chair','BB_ARMCHAIR',49,51],['reception-table','BB_COFFEE_TABLE',51,50],['reception-plant','BB_MONSTERA',52,52],['reception-coat','BB_COAT',40,51],
   ['dining-table','BB_DINING',63,41],['dining-a','BB_DINING_FRONT',64,40],['dining-b','BB_DINING_FRONT',66,40],['dining-c','BB_DINING_BACK',64,44],['dining-d','BB_DINING_BACK',66,44],
-  ['game-pool','BB_POOL',59,50],['game-sofa','BB_SOFA',59,53],['game-table','BB_COFFEE_TABLE',62,53],['game-plant','BB_MONSTERA',71,51],
+  ['game-pool','BB_POOL',59,50],['game-bench','BB_BENCH',69,52],
   // Woodland: clustered varied species, understory, shore and benches.
   ['grove-maple-a','BB_MAPLE',5,59],['grove-cherry-a','BB_CHERRY',8,58],['grove-maple-b','BB_MAPLE',12,60],['grove-pine-a','BB_PINE',17,58],['grove-cherry-b','BB_CHERRY',20,59],['grove-maple-c','BB_MAPLE',25,58],['grove-pine-b','BB_PINE',33,60],
   ['grove-bench-a','BB_BENCH',7,64],['grove-bench-b','BB_BENCH',16,64],['grove-beds-a','BB_FLOWERBED',22,64],

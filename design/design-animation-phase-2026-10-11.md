@@ -57,3 +57,12 @@ These are requested changes and reported defects, not completed work. Start with
 ### Glass correction after owner review
 
 Owner rejected the initial low tinted strips as resembling a railing. Replaced them with elevated 36px transparent panes, thin frames and broken diagonal reflection highlights. Opaque wall bases are erased before glazing; the room floor remains visible through the raised front panes. Production build and live CEO screenshot verified. Collision and private door behavior unchanged.
+
+## Studio, games and garden pass
+
+- Revision 118 groups the studio camera, softbox and subject chair around a dedicated backdrop/platform, separate from editing desks.
+- Cleared sofa/table/plant clutter from the billiards area; retained two wall-mounted arcades, added an arcade-side bench, cue rack and score board.
+- Garden routes and terrace share one clipped material surface with rounded exposed corners, common staggered limestone seams and exposed-edge detailing. Route walkability remains unchanged.
+- Default furniture migrations are scoped by UID/old position, checked for collisions and skip owner-modified groups.
+- 41 UI tests pass, including saved placement migration and existing full layout overlap/path checks; production build passes. Live studio, game-room and garden views inspected.
+- Room-specific lighting and richer purpose-built equipment assets still need a dedicated pass. This does not claim the entire office design is complete. Glass refinements paused at owner's request.
