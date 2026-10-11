@@ -441,3 +441,23 @@ div:has(>.bb-shell .bb-session-focus)>.bb-native-tool{visibility:hidden}
  .bb-session-heading{flex-direction:row;align-items:center;gap:8px;margin-bottom:12px}.bb-session-heading h1{font-size:22px;margin:0}.bb-session-heading>.bb-session-actions{width:auto}.bb-session-heading>.bb-session-actions button{padding:8px 10px}.bb-session-heading>.bb-session-actions button:first-child{font-size:12px}.bb-session-heading>.bb-session-actions button svg{display:none}
  .bb-session-catalog>.bb-work-note{margin:8px 0}.bb-session-catalog .bb-session-filters{gap:8px}.bb-catalog-count{margin:8px 0}.bb-session-catalog .bb-session-list article time{font-size:12px}
 }
+
+/* Office-first entry: one canvas, four primary destinations, optional tools. */
+.bb-shell{--bb-top:148px}
+.bb-sync-status.ready{display:none}.bb-sync-status.pending{top:136px;height:auto;min-height:36px;z-index:15;white-space:normal}
+.bb-view-office{grid-template-rows:auto minmax(0,1fr);gap:8px}
+.bb-masthead{height:60px;top:12px;box-shadow:none}.bb-brand small{display:none}
+.bb-project-bar{top:82px;min-height:48px}.bb-project-bar small{display:none}
+.bb-main-menu{position:relative;pointer-events:auto}.bb-main-menu>summary{display:flex;align-items:center;justify-content:center;list-style:none;width:44px;height:44px;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}.bb-main-menu>summary::-webkit-details-marker{display:none}
+.bb-menu-items{position:absolute;right:0;top:52px;z-index:50;width:250px;display:flex;flex-direction:column;padding:8px;gap:4px;background:var(--navy);border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 48px #08140e88}.bb-menu-items button{justify-content:flex-start;background:transparent;border:0;text-align:left}.bb-menu-items small{padding:8px;color:var(--muted)}
+.bb-masthead{z-index:30}.bb-office-window-label{background:var(--navy)!important;border-color:var(--line)!important}.bb-office-window-label>span{font-size:13px}.bb-cozy-controls{gap:4px}.bb-cozy-controls button{padding:8px}
+@media(max-width:900px){
+ .bb-shell{--bb-top:138px;--bb-bottom:calc(84px + env(safe-area-inset-bottom,0px))}.bb-masthead{left:12px;right:12px;top:8px;height:58px;padding:6px 10px}.bb-masthead .bb-brand>span:last-child{display:block}.bb-brand strong{font-size:17px;letter-spacing:-.3px}.bb-mark{width:34px;height:34px;font-size:18px;border-radius:10px}.bb-shell .bb-brand{gap:8px}.bb-masthead nav{gap:6px}.bb-masthead nav>.bb-primary{width:44px;padding:0}.bb-masthead nav>.bb-primary span{display:none}
+ .bb-project-bar{top:74px;left:12px;right:12px;min-height:48px}.bb-sync-status.pending{top:126px;left:12px;right:12px}
+ .bb-mobile-nav{grid-template-columns:repeat(4,minmax(0,1fr));padding:6px;bottom:calc(8px + env(safe-area-inset-bottom,0px));height:66px}.bb-mobile-nav button{font-size:12px}
+ .bb-office-window-label{padding:6px 8px;flex-wrap:nowrap;gap:4px}.bb-office-window-label>span{display:none}.bb-cozy-controls{width:100%}.bb-cozy-controls select{flex:1;min-width:0;max-width:none}.bb-cozy-controls .bb-control-label{display:none}.bb-office-frame{border-radius:14px}
+ .bb-role-card{top:auto;bottom:var(--bb-bottom);max-height:45%;left:12px;right:12px;width:auto}
+}
+
+.bb-legacy-tools:not(.editing){display:none}
+.bb-menu-items{max-height:calc(100dvh - 150px);overflow:auto}

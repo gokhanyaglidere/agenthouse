@@ -334,7 +334,7 @@ function App() {
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden">
-      <BibilenOffice office={officeState} subagents={subagentCharacters} onLayout={editor.setLastSavedLayout} zoom={editor.zoom} onZoom={editor.handleZoomChange} panRef={editor.panRef} />
+      <BibilenOffice onEditLayout={editor.handleToggleEditMode} onAdvancedSettings={()=>setIsSettingsOpen(true)} office={officeState} subagents={subagentCharacters} onLayout={editor.setLastSavedLayout} zoom={editor.zoom} onZoom={editor.handleZoomChange} panRef={editor.panRef} />
       <OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
@@ -356,7 +356,7 @@ function App() {
 
       {!isDebugMode ? (
         <>
-          <ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} />
+          <div className={`bb-legacy-tools ${editor.isEditMode?'editing':''}`}><ZoomControls zoom={editor.zoom} onZoomChange={editor.handleZoomChange} /></div>
 
           {/* Vignette overlay */}
           <div
@@ -513,7 +513,7 @@ function App() {
         </div>
       </Modal>
 
-      <BottomToolbar
+      <div className={`bb-legacy-tools ${editor.isEditMode?'editing':''}`}><BottomToolbar
         isEditMode={editor.isEditMode}
         onOpenClaude={editor.handleOpenClaude}
         onToggleEditMode={editor.handleToggleEditMode}
@@ -522,14 +522,15 @@ function App() {
         workspaceFolders={workspaceFolders}
       />
 
-      <VersionIndicator
+      </div>
+      <div className="bb-legacy-tools"><VersionIndicator
         currentVersion={extensionVersion}
         lastSeenVersion={lastSeenVersion}
         onDismiss={handleWhatsNewDismiss}
         onOpenChangelog={handleOpenChangelog}
       />
 
-      <ConnectionIndicator />
+      <ConnectionIndicator /></div>
 
       <ChangelogModal
         isOpen={isChangelogOpen}

@@ -217,7 +217,10 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
  ctx.font=`600 ${fontSize}px system-ui, sans-serif`;
  for(const [index,room]of COZY_ROOMS.entries()){
   if(room.outdoor||index===10)continue;
-  const title=room.locked?'GÖKHAN · ÖZEL OFİS':room.label;
+  let title=room.locked?'Gökhan · CEO':room.label;
+  const available=(room.right-room.left)*16*zoom-16*dpr;
+  if(available<28*dpr)continue;
+  if(ctx.measureText(title).width>available){while(title.length&&ctx.measureText(title+'…').width>available)title=title.slice(0,-1);title=title.trimEnd()+'…';}
   const cx=Math.round(x+(room.left+room.right+1)*8*zoom),cy=Math.round(y+(room.top*16-7)*zoom);
   const width=Math.ceil(ctx.measureText(title).width)+12*dpr,height=fontSize+6*dpr;
   if(cx+width/2<0||cx-width/2>ctx.canvas.width||cy+height/2<0||cy-height/2>ctx.canvas.height)continue;

@@ -311,6 +311,8 @@ export function OfficeCanvas({
         for (const ch of officeState.getCharacters()) {
           const name=ch.agentName??ch.workName;
           if (!name) continue;
+          // Names remain readable in room views; at overview scale they would cover the office.
+          if (zoom / dpr < 1 && officeState.selectedAgentId !== ch.id) continue;
           const anchorX = offsetX + ch.x * zoom;
           const anchorY = offsetY + (ch.y - 30) * zoom;
           if(anchorX<0||anchorX>canvas.width||anchorY<-30*zoom||anchorY>canvas.height)continue;
