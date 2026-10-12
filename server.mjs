@@ -1,3 +1,4 @@
+import {ToolGuard} from './tool-guard.mjs';
 import {ProjectPolicy} from './project-policy.mjs';
 import {StateBackup} from './state-backup.mjs';
 import {SessionCatalog} from './session-catalog.mjs';
@@ -64,7 +65,10 @@ function getRuntime(workspaceId){
  const scopedPath=name=>join(context.storageDir,context.legacy?'bibilen-'+name+'.json':name+'.json');
  const push=new ScopedPush(accountPush,context,{legacy:context.legacy});
  const taskTerminals=new Map();
- const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,context,admission,onNotice:(task,heading)=>push.send(task,heading)});
+ const policy=new ProjectPolicy(scopedPath('project-policy'));
+ const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
+ const launchGuard=()=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode});
+ const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,context,admission,launchGuard,checkNewWork:()=>policy.assertNewWork(),onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
  const spawnTerminal=args=>{
   context.assertValid();
@@ -72,14 +76,14 @@ function getRuntime(workspaceId){
   const id=args[args.indexOf(args.includes('--session-id')?'--session-id':'--resume')+1];
   const key=context.workspaceId+':'+id;
   admission.reserve(key);
-  try{const terminal=terminalBroker.create(args);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
+  try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
  const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy:new ProjectPolicy(scopedPath('project-policy')),
+ const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),
@@ -122,8 +126,8 @@ wss.on('connection',(ws,req)=>{
  if(!runtime.terminal){
   const key=runtime.context.workspaceId+':console';
   try{
-   runtime.context.assertValid();admission.reserve(key);
-   runtime.terminal=pty.spawn(claudePath,['--permission-mode','default','--append-system-prompt',`${runtime.context.projectName} projesinin koordinatörü Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Uzman gerektiğinde bu projenin .claude/agents tanımlarını kullan.`],{name:'xterm-256color',cols:100,rows:32,cwd:runtime.cwd,env:{...process.env,TERM:'xterm-256color'}});
+   runtime.policy.assertNewWork();runtime.context.assertValid();admission.reserve(key);
+   runtime.terminal=pty.spawn(claudePath,['--permission-mode','default',...runtime.launchGuard(),'--append-system-prompt',`${runtime.context.projectName} projesinin koordinatörü Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Uzman gerektiğinde bu projenin .claude/agents tanımlarını kullan.`],{name:'xterm-256color',cols:100,rows:32,cwd:runtime.cwd,env:{...process.env,TERM:'xterm-256color'}});
    runtime.terminal.onData(broadcast);runtime.terminal.onExit(({exitCode})=>{admission.release(key);broadcast(`\r\nClaude Code oturumu kapandı (${exitCode}).\r\n`);runtime.terminal=null;});
   }catch(error){admission.release(key);runtime.controller=null;ws.send(error.message);ws.close(1011);return;}
  }
@@ -159,6 +163,7 @@ officeSockets.on('connection',(client,req)=>{
  client.on('message',raw=>{
   let message;try{message=JSON.parse(String(raw));}catch{return;}
   if(req.bibilenViewer&&!['webviewReady'].includes(message.type))return;
+  if(message.type==='launchAgent'||message.bypassPermissions){client.send(JSON.stringify({type:'bibilenNotice',message:'Yeni oturum için Oturumlar bölümünü kullan. Korumasız ajan başlatma kapalı.'}));return;}
   if(message.type==='bibilenSyncSessions')return; // Internal verified inventory only.
   delete message.bibilenControlKey;const data=JSON.stringify(message);
   if(upstream.readyState===WebSocket.OPEN)upstream.send(data);else if(pending.length<32)pending.push(data);
@@ -227,7 +232,9 @@ async function handleApi(req,res,url){
       sendJson(res,operator?200:403,{ok:operator});return true;
     }
     if(!operator&&req.method!=='GET'){sendJson(res,403,{error:'İzleyici erişiminde komut ve ayar değişikliği yapılamaz.'});return true;}
-    if(url.pathname==='/bibilen/api/project-policy'){if(!operator){sendJson(res,403,{error:'Proje izinlerini yalnızca yönetici görebilir.'});return true;}sendJson(res,200,req.method==='POST'?runtime.policy.update(await readJson(req)):runtime.policy.state());return true;}
+    if(url.pathname==='/bibilen/api/approvals'){if(!operator){sendJson(res,403,{error:'Onayları yalnızca yönetici görebilir.'});return true;}sendJson(res,200,runtime.guard.state());return true;}
+    const approvalMatch=url.pathname.match(/^\/bibilen\/api\/approvals\/([^/]+)$/);if(req.method==='POST'&&approvalMatch){if(!operator){sendJson(res,403,{error:'Yalnızca yönetici karar verebilir.'});return true;}sendJson(res,200,runtime.guard.decide(approvalMatch[1],(await readJson(req)).decision));return true;}
+    if(url.pathname==='/bibilen/api/project-policy'){if(!operator){sendJson(res,403,{error:'Proje izinlerini yalnızca yönetici görebilir.'});return true;}if(req.method==='POST'){const value=runtime.policy.update(await readJson(req));runtime.guard.invalidate();sendJson(res,200,value);}else sendJson(res,200,runtime.policy.state());return true;}
     if(req.method==='GET'&&url.pathname==='/bibilen/api/work/overview'){sendJson(res,200,await workTracker.overview());return true;}
     const changesMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/changes$/);
     if(req.method==='GET'&&changesMatch){sendJson(res,200,await sessionChanges(cwd,await workTracker.get(changesMatch[1])));return true;}
@@ -292,6 +299,7 @@ async function handleApi(req,res,url){
   }catch(error){sendJson(res,400,{error:error?.message??'İşlem tamamlanamadı.'});return true;}
 }
 const server=http.createServer(async(req,res)=>{
+  if(req.url?.startsWith('/bibilen/guard/check?')&&req.method==='POST'){try{const u=new URL(req.url,'http://localhost');const r=getRuntime(u.searchParams.get('workspaceId'));if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||!r.guard.authenticates(String(req.headers.authorization??'').replace(/^Bearer /,''))){sendJson(res,403,{error:'Forbidden'});return;}sendJson(res,200,await r.guard.check(await readJson(req)));}catch{sendJson(res,400,{error:'Guard unavailable'});}return;}
   if(!validHost(req.headers.host)){res.writeHead(403);res.end('Forbidden host');return;}
   const url=new URL(req.url,`http://${req.headers.host}`);
   if(url.pathname.startsWith('/bibilen/api/')){if(!authorizedRequest(req.headers,req.method)){sendJson(res,403,{error:'İstek kaynağına izin verilmiyor.'});return;}await handleApi(req,res,url);return;}

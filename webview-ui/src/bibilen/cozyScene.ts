@@ -1,3 +1,4 @@
+import {PARTITION,doorGeometry} from './partition-style.js';
 import {motionEnabled} from './motion.js';
 import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PAVING,GARDEN_TERRACE,EXTERIOR_APPROACHES,POND,WORK_TEAMS,type CozyRoom} from './layouts.js';
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
@@ -40,7 +41,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   const bl=BUILDING.left*16,bt=BUILDING.top*16,bw=(BUILDING.right-BUILDING.left+1)*16,bh=(BUILDING.bottom-BUILDING.top+1)*16;
   rect(bl+8,bt+8,bw+8,bh+12,'#40513a55');
   rect(bl,bt,bw,bh,'#c9c1ac');
-  for(let yy=bt;yy<bt+bh;yy+=32)for(let xx=bl;xx<bl+bw;xx+=32){
+  for(let yy=bt;yy<bt+bh;yy+=32)for(let xx=bl;xx<bl+bw;xx+=PARTITION.paneWidth){
    rect(xx,yy,32,1,'#b1aa99');rect(xx,yy,1,32,'#b1aa99');
    rect(xx+2,yy+2,28,1,'#ddd5bf');
   }
@@ -87,7 +88,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    }
    // Low planted/fenced boundaries, visually distinct from solid indoor walls.
    rect(l,t,w,7,'#536b43');rect(l,t,5,h,'#506c43');rect(l+w-5,t,5,h,'#506c43');rect(l,t+h-7,w,7,'#536b43');
-   for(let xx=l+12;xx<l+w;xx+=32){rect(xx,t,3,10,'#8d744d');rect(xx,t+h-10,3,10,'#8d744d');}
+   for(let xx=l+12;xx<l+w;xx+=PARTITION.paneWidth){rect(xx,t,3,10,'#8d744d');rect(xx,t+h-10,3,10,'#8d744d');}
   }
   c.save();gardenPath();c.clip();brick(0,56,77,21);c.restore();
   // Exposed edges only: shared path seams are never outlined as separate slabs.
@@ -118,6 +119,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
     rect(px-3,py-2,22,5,'#624b34');rect(px-3,py+45,22,5,'#624b34');
     rect(px-1,py,20,3,'#b78d5e');rect(px-1,py+45,20,3,'#b78d5e');
    }
+   if(room===COZY_ROOMS[2]&&!horizontal){rect(px-2,py-2,20,52,'#526d66');rect(px+2,py+2,12,44,'#b8dbd465');rect(px+2,py+23,12,2,'#648b89');rect(px+7,py+17,5,1,'#e9c888');for(let n=0;n<8;n++)rect(px+4+n,py+5+n,1,1,'#f0ffff75');}
    if(room.locked){
     rect(px+3,py-3,42,22,'#64482e');rect(px+6,py,36,17,'#9c7547');
     for(const dx of [9,21,33])rect(px+dx,py+1,1,15,'#c49a62');
@@ -154,11 +156,11 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
      // Erase the opaque wall base before applying transparent glazing.
      rect(px,py,w,h,'#c9c1ac');
      if(w>h){
-      const top=py-24,base=py+12;
+      const top=py-PARTITION.rise,base=py+PARTITION.depth;
       rect(px,top,w,base-top,'#a9d9dc40');
       rect(px,top,w,1,'#e4f7ec');rect(px,top+1,w,1,'#648b89');
       rect(px,base,w,2,'#4f6861');rect(px,base+2,w,2,'#aa956e');
-      for(let xx=px;xx<px+w;xx+=32){
+      for(let xx=px;xx<px+w;xx+=PARTITION.paneWidth){
        rect(xx,top,1,base-top,'#526d66');rect(xx+1,top,1,base-top,'#d4e5cc');
        const end=Math.min(xx+31,px+w-1);
        // Broken diagonal glints make the vertical pane distinct from flooring.
@@ -178,15 +180,16 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
      glass((room.door+2)*16,b,r+16-(room.door+2)*16,16);
     }else glass(l+16,b,r-l,16);
     // Shared corner mullions meet the side partition and front glazing.
-    rect(r,b-24,2,38,'#526d66');rect(r+2,b-24,1,38,'#d4e5cc');
-    rect(r+15,b-24,1,38,'#526d66');rect(r,b-24,16,2,'#648b89');
+    rect(r,b-PARTITION.rise,2,PARTITION.rise+PARTITION.depth,'#526d66');rect(r+2,b-PARTITION.rise,1,PARTITION.rise+PARTITION.depth,'#d4e5cc');
+    rect(r,b-PARTITION.rise,16,2,'#648b89');
     if(room.doorSide==='south'){
-     const dx=(room.door-1)*16,top=b-24;
-     rect(dx,top,48,38,'#526d66');rect(dx+2,top+2,44,34,'#acd4ce65');
-     rect(dx+23,top+2,2,34,'#526d66');
-     rect(dx+3,top+27,42,8,'#927453');rect(dx+3,top+35,42,1,'#c6aa7a');
-     rect(dx+34,top+17,2,7,'#e9c888');
-     for(let n=0;n<9;n++)rect(dx+7+n,top+6+n,2,1,'#f0ffff90');
+     const g=doorGeometry((room.door-1)*16,b);
+     rect(g.x,g.y,g.width,g.height,'#526d66');rect(g.x+2,g.y+2,g.width-4,g.height-4,'#b8dbd44a');
+     rect(g.x+23,g.y+2,2,g.height-4,'#526d66');rect(g.x+3,g.y+g.height-5,42,3,'#927453');
+     rect(g.x+34,g.y+12,2,6,'#e9c888');
+     for(let n=0;n<7;n++)rect(g.x+7+n,g.y+5+n,2,1,'#f0ffff75');
+   if(room.locked){rect(g.x+21,g.y+11,7,7,'#d8b35f');rect(g.x+23,g.y+8,3,4,'#526d66');}
+
     }
 
    }

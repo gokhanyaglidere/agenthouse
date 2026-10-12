@@ -80,7 +80,8 @@ function initialData() {
 }
 
 export class TaskManager {
-  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = run, context, admission, storePath = context?.taskStorePath ?? STORE_PATH }) {
+  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = run, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{} }) {
+    this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
     this.context = context;
     this.admission = admission;
     this.cwd = context?.cwd ?? cwd;
@@ -144,6 +145,7 @@ export class TaskManager {
   }
 
   create(input) {
+    this.checkNewWork?.();
     this.context?.assertValid();
     const values = validateTaskInput(input, this.allowedRoles);
     const taskId = randomUUID();
@@ -241,7 +243,8 @@ export class TaskManager {
     const prompt = task.role === 'chief'
       ? `${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak bu görevi yürüt. Gerektiğinde .claude/agents içindeki uygun uzmanları kullan.\n\nGörev: ${task.prompt}`
       : task.prompt;
-    const args = ['--bg', '--name', task.sessionName, '--permission-mode', 'default'];
+    let guardArgs;try{guardArgs=this.launchGuard?.()??[];}catch{task.status='failed';task.stage='failed';task.error='Araç koruması hazırlanamadı; görev başlatılmadı.';task.completedAt=Date.now();this.save();return;}
+    const args = ['--bg', '--name', task.sessionName, '--permission-mode', 'default',...guardArgs];
     if (task.role !== 'chief') args.push('--agent', task.role);
     args.push(prompt);
     let result;

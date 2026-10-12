@@ -1,3 +1,4 @@
+import {doorGeometry} from './partition-style.js';
 import {COZY_ROOMS} from './layouts.js';
 import {motionEnabled,motionLevel} from './motion.js';
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
@@ -20,7 +21,9 @@ export function renderDoors(c:CanvasRenderingContext2D,x:number,y:number,zoom:nu
    const near=characters.some(ch=>!ch.sessionHidden&&Math.hypot(ch.x-(px+(horizontal?24:8)),ch.y-(py+(horizontal?8:24)))<42);
    const key=room.label+d.side+d.at,target=near?1:0,old=doors.get(key)??target;const value=motionEnabled()?old+Math.sign(target-old)*Math.min(Math.abs(target-old),dt*4):target;doors.set(key,value);
    const panel=Math.round(21*(1-value));c.fillStyle='#96724e';
-   if(horizontal){c.fillRect(px+3,py-1,panel,12);c.fillRect(px+45-panel,py-1,panel,12);c.fillStyle='#e9c888';if(panel>4){c.fillRect(px+panel,py+4,2,3);c.fillRect(px+46-panel,py+4,2,3);}}
+   if(horizontal&&(room===COZY_ROOMS[2])&&d.side==='south'){const g=doorGeometry(px,py);c.fillStyle='#ccb894';c.fillRect(g.x+2,g.y+2,44,g.height-4);for(const side of [0,1]){const lx=side===0?g.x+2:g.x+46-panel;c.fillStyle='#64877f';c.fillRect(lx,g.y+2,panel,g.height-4);if(panel>3){c.fillStyle='#b8dbd4';c.globalAlpha=.45;c.fillRect(lx+1,g.y+3,panel-2,g.height-7);c.globalAlpha=1;c.fillStyle='#e9c888';c.fillRect(side===0?lx+panel-3:lx+2,g.y+12,1,6);c.fillStyle='#e9ffff80';c.fillRect(lx+3,g.y+6,Math.max(0,panel-7),1);}}}
+   else if(horizontal){c.fillRect(px+3,py-1,panel,12);c.fillRect(px+45-panel,py-1,panel,12);c.fillStyle='#e9c888';if(panel>4){c.fillRect(px+panel,py+4,2,3);c.fillRect(px+46-panel,py+4,2,3);}}
+   else if(!horizontal&&room===COZY_ROOMS[2]){c.fillStyle='#ccb894';c.fillRect(px+2,py+2,12,44);for(const side of [0,1]){const ly=side===0?py+2:py+46-panel;c.fillStyle='#64877f';c.fillRect(px+2,ly,12,panel);if(panel>3){c.fillStyle='#b8dbd4';c.globalAlpha=.45;c.fillRect(px+3,ly+1,10,panel-2);c.globalAlpha=1;c.fillStyle='#e9c888';c.fillRect(px+7,side===0?ly+panel-3:ly+2,4,1);}}}
    else{c.fillRect(px+1,py+3,12,panel);c.fillRect(px+1,py+45-panel,12,panel);}
   }
  }c.restore();

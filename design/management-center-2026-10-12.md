@@ -11,8 +11,10 @@ Menü → Yönetim merkezi: bekleyen yanıtlar, sistem sağlığı, proje izinle
 
 Doğrulama: 133 backend testi, 44 UI testi ve derleme geçti. İki proje içeren HTTP fixture, bir projeyi kapatınca yeni görev ve konuşmanın reddedildiğini, diğer projenin açık kaldığını ve izleyicinin izin değiştiremediğini doğruladı. Canlı panelde şablon taslağa uygulandı ve test taslağı temizlendi; görev gönderilmedi. Mevcut geçmiş görevde sonuç paketi ve rapor indirme düğmesi görüldü. Mobil yönetim penceresinin başlığını örten katman hatası düzeltildi.
 
-## Henüz tamamlanmayan ileri güvenlik katmanı
+## İlk sürümün güvenlik sınırları (sonraki geçişle güncellendi)
 
 - Dosya/araç başına proje izinleri ve yayınlama/silme için ayrı, sunucuda zorunlu onay kapıları henüz uygulanmadı. Claude varsayılan izin modu ve proje kuralları geçerli. Bu kurallar için terminal içindeki serbest komutlar, alt ajanlar ve dış CLI süreçlerini kapsayan bir tehdit modeli ve uygulama gereklidir; yalnızca prompt eklemek güvenlik uygulaması sayılmaz.
 - İzin sorusunun yapılandırılmış tam metnini ve etkilenecek dosyaları alıp doğrudan güvenli onay verme henüz yok; canlı terminale yönlendirme vardır.
 - Gerçek cihaz push/dikte/klavye testleri kullanıcı tarafından sonraya bırakıldı. Slack/finans entegrasyonları beklemede.
+
+Güncel araç izinleri, tek kullanımlık onay ve sandbox uygulaması: [12 Ekim güvenlik geçişi](security-and-polish-2026-10-12.md). Yukarıdaki ilk sürüm sınırları tarihsel kayıttır; yeni korumalı oturumlarda bu geçiş uygulanır.

@@ -89,5 +89,10 @@ export async function downloadBackup(){
  const link=document.createElement('a');link.href=url;link.download=`agent-house-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-export const getProjectPolicy=()=>request<{allowNewWork:boolean;updatedAt:number|null}>('project-policy');
-export const updateProjectPolicy=(allowNewWork:boolean)=>request<{allowNewWork:boolean;updatedAt:number|null}>('project-policy',{method:'POST',body:JSON.stringify({allowNewWork})});
+export interface ProjectToolPolicy{toolRevision:number|null;allowNewWork:boolean;updatedAt:number|null;toolMode:'guarded'|'readonly';deniedPaths:string[];deniedTools:string[];allowedDomains:string[]}
+export const getProjectPolicy=()=>request<ProjectToolPolicy>('project-policy');
+export const updateProjectPolicy=(allowNewWork:boolean,extra:Partial<ProjectToolPolicy>={})=>request<ProjectToolPolicy>('project-policy',{method:'POST',body:JSON.stringify({allowNewWork,...extra})});
+
+export interface ToolApproval{id:string;sessionId:string;tool:string;input:Record<string,unknown>;files:string[];reason:string;createdAt:number;expiresAt:number;status:string}
+export const getApprovals=()=>request<{pending:ToolApproval[];history:ToolApproval[];checkedAt:number|null;checkedSessions:string[]}>('approvals');
+export const decideApproval=(id:string,decision:'allow'|'deny')=>request<{ok:boolean}>(`approvals/${id}`,{method:'POST',body:JSON.stringify({decision})});

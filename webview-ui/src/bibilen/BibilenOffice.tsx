@@ -108,6 +108,7 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef,onEd
  const openSession=(id:string)=>{setSessionTarget(id);setView('sessions');const url=new URL(location.href);url.searchParams.set('session',id);url.searchParams.delete('task');history.replaceState({},'',url);};
  const [showAppearance,setShowAppearance]=useState(false);
  const [notice,setNotice]=useState('');
+ useEffect(()=>transport.onMessage(message=>{const m=message as unknown as {type:string;message?:string};if(m.type==='bibilenNotice'&&m.message)setNotice(m.message);}),[]);
  const [theme,setTheme]=useState<Theme>(()=>(localStorage.getItem(workspaceStorage('bb-theme')) as Theme)||'studio');
  const [ambience,setAmbience]=useState<Ambience>(()=>(localStorage.getItem(workspaceStorage('bb-ambience')) as Ambience)||'auto');
  const [clock,setClock]=useState(Date.now());

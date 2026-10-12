@@ -1,0 +1,10 @@
+{
+  "sessions": 100,
+  "members": 10000,
+  "iterations": 20,
+  "p95ms": 0.41295800000000327,
+  "maxms": 1.273040999999992,
+  "kind": "synthetic metadata workload",
+  "date": "2026-10-12",
+  "note": "Metadata only; not real Claude sessions or canvas FPS."
+}

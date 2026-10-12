@@ -44,6 +44,20 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  const viewerPolicy=await request('project-policy',{workspace:aid,body:{allowNewWork:true},headers:{host:'office.example',origin:'https://office.example','tailscale-user-login':'viewer@example.com'}});assert.equal(viewerPolicy.status,403);
  assert.equal((await request('project-policy',{workspace:aid})).body.allowNewWork,false);
  await request('project-policy',{workspace:aid,body:{allowNewWork:true}});
+ // Exercise the real guard HTTP boundary without launching a model or command.
+ const guardToken=JSON.parse(readFileSync(join(privateDir,'bibilen-tool-guard.json'),'utf8')).token;
+ const payload={guard_policy_revision:(await request('project-policy',{workspace:aid})).body.toolRevision,hook_event_name:'PreToolUse',session_id:'fixture-session',tool_name:'Bash',tool_input:{command:'git push && rm -rf fixture-only'}};
+ const guardedFetch=(workspace,token)=>fetch(base+'/bibilen/guard/check?workspaceId='+workspace,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(payload)});
+ assert.equal((await guardedFetch(aid,'invalid')).status,403);
+ assert.equal((await guardedFetch(bid,guardToken)).status,403);
+ const waiting=guardedFetch(aid,guardToken);
+ const pending=await waitUntil(async()=>{const p=(await request('approvals',{workspace:aid})).body.pending;if(!p.length)throw Error();return p[0];});
+ assert.equal(pending.input.command,payload.tool_input.command);
+ const deniedViewer=await request('approvals/'+pending.id,{workspace:aid,body:{decision:'allow'},headers:{host:'office.example',origin:'https://office.example','tailscale-user-login':'viewer@example.com'}});assert.equal(deniedViewer.status,403);
+ assert.equal((await request('approvals/'+pending.id,{workspace:aid,body:{decision:'allow'}})).status,200);
+ assert.equal((await (await waiting).json()).decision,'allow');
+ assert.equal((await request('approvals/'+pending.id,{workspace:aid,body:{decision:'allow'}})).status,400);
+
 
  assert.equal((await request('roles',{workspace:bid})).body.legacy,false);
  await request('notifications/test',{workspace:aid,body:{}});await request('notifications/test',{workspace:bid,body:{}});
