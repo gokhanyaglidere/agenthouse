@@ -7,6 +7,7 @@ async function freePort(){const s=net.createServer();await new Promise(r=>s.list
 async function waitUntil(fn){for(let n=0;n<80;n++){try{return await fn();}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error('Fixture gateway did not start');}
 test('isolated gateway routes two real workspace contexts without crossing records',async t=>{
  const root=mkdtempSync(join(tmpdir(),'bb-gateway-')),home=join(root,'home'),a=join(root,'a'),b=join(root,'b');for(const p of [home,a,b])mkdirSync(p);
+ for(const [folder,description]of [[a,'Only project A'],[b,'Only project B']]){mkdirSync(join(folder,'.claude','agents'),{recursive:true});writeFileSync(join(folder,'.claude','agents','local.md'),'---\nname: local\ndescription: '+description+'\n---\nProject instructions');}
  const privateDir=join(home,'.pixel-agents');mkdirSync(privateDir);writeFileSync(join(privateDir,'bibilen-access.json'),JSON.stringify({owners:[]}));
  const claude=join(root,'claude-fixture');writeFileSync(claude,`#!${process.execPath}\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(join(root,'calls.jsonl'))},JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)})+'\\n');if(process.argv.includes('agents'))console.log('[]');else if(process.argv.includes('--bg'))console.log('backgrounded · 12345678');else console.log('{}');`,{mode:0o700});
  // Executable .mjs keeps the fixture independent of any developer package type.
@@ -21,6 +22,13 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  const inventory=await waitUntil(async()=>{const r=await request('projects');if(r.status!==200)throw Error();return r.body;});
  const aid=inventory.defaultWorkspaceId;const registration=await request('projects',{body:{name:'Fixture B',path:b}});assert.equal(registration.status,201,output);const bid=registration.body.workspace.id;
  assert.notEqual(aid,bid);
+ assert.equal(registration.body.capabilities.agents[0].description,'Only project B');
+ assert.equal((await request('roles',{workspace:aid})).body.agents[0].description,'Only project A');
+ assert.equal((await request('roles',{workspace:bid})).body.agents[0].description,'Only project B');
+ writeFileSync(join(b,'.claude','agents','new.md'),'---\nname: freshly-added\ndescription: New local role\n---\nLocal instructions');
+ assert.ok((await request('roles',{workspace:bid})).body.roles.includes('freshly-added'));
+ assert.equal((await request('capabilities',{workspace:aid,headers:{host:'office.example','tailscale-user-login':'viewer@example.com'}})).status,403);
+
  // Require both native office engines to answer, not just the gateway metadata.
  for(const workspace of [aid,bid])await waitUntil(()=>new Promise((resolve,reject)=>{
   const ws=new WebSocket(`ws://127.0.0.1:${port}/ws?workspaceId=${workspace}`,{headers:{origin:base}});

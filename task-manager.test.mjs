@@ -148,3 +148,4 @@ test('one failed logs query cannot block another task or later polls',async()=>{
  const a=job(),b=job({id:'b',sessionId:'bbbbbbbb',sessionName:'b'}),m=fixture([a,b]);m.schedule=async()=>{};m.listAgents=async()=>[{id:'deadbeef',state:'done'},{id:'bbbbbbbb',state:'done'}];let offline=true;
  m.logs=async t=>{if(t===a&&offline)throw Error('offline');return '';};await m.tick();assert.equal(a.status,'running');assert.equal(b.status,'completed');offline=false;await m.tick();assert.equal(a.status,'completed');
 });
+test('project-defined chief is launched as its native definition rather than a substituted prompt',async()=>{let args;const task=job({role:'chief',status:'queued',sessionId:null}),m=fixture([task],async(_command,value)=>{args=value;return {code:0,stdout:'backgrounded · 12345678',stderr:''};});m.nativeRoles=new Set(['chief']);await m.launchReserved(task);assert.equal(args[args.indexOf('--agent')+1],'chief');assert.equal(args.at(-1),task.prompt);});

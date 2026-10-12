@@ -358,8 +358,12 @@ export const isResident = (id: number) => id <= -10000;
 
 export interface ResidentRole {key:string;name:string;group:string;description:string;skills:readonly string[];}
 export const ROSTER:ResidentRole[]=[...BASE_ROSTER];
-export function configureRoster(keys:string[],legacy:boolean){
+export interface ProjectAgent {key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean}>;}
+export function configureRoster(keys:string[],legacy:boolean,agents?:ProjectAgent[]){
  const roles=keys.map(key=>{
+  const local=agents?.find(a=>a.key===key);
+  if(local)return {key,name:local.name,description:local.description,group:local.group??'Proje ajanları',skills:local.skillLinks?.map(s=>s.name+(s.available?'':' · bulunamadı'))??local.skills};
+  if(agents)return {key,name:key==='chief'?'Gökhan':key,description:key==='chief'?'Ana Claude oturumu · projenin kendi kurallarıyla çalışır.':'Tanım bulunamadı.',group:'Ana oturum',skills:[]};
   const known=BASE_ROSTER.find(r=>r.key===key);
   if(known)return {...known,skills:legacy?known.skills:[],description:legacy?known.description:key==='chief'?'Bu projenin görevlerini planlar ve yerel uzmanlara dağıtır.':'Bu projenin yerel Claude ajanı.'};
   const portableNames:Record<string,string>={'project-engineer':'Yazılım geliştiricisi','project-reviewer':'Kod incelemecisi','operations-reporter':'Operasyon sorumlusu'};

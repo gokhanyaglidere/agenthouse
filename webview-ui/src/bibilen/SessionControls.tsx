@@ -1,9 +1,10 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {getSkillCatalog,getSkillInstruction} from './api.js';
 import type {SkillChoice} from './api.js';
 export function SessionControls({canWrite,stage,send}:{canWrite:boolean;stage:(text:string)=>boolean;send:(text:string)=>boolean}){
  const [expanded,setExpanded]=useState(false);
  const [model,setModel]=useState('sonnet'),[effort,setEffort]=useState('high'),[skills,setSkills]=useState<SkillChoice[]>([]),[skill,setSkill]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ useEffect(()=>{let current=true;void getSkillCatalog().then(value=>{if(current)setSkills(value.skills);}).catch(()=>{if(current)setNotice('Proje skill’leri alınamadı; yeniden listeleyebilirsin.');});return()=>{current=false;};},[]);
  const put=(text:string)=>setNotice(stage(text)?'Taslağa eklendi. Kontrol edip Gönder’e bas.':'Önce mevcut taslağını gönder veya temizle.');
  const load=async()=>{setBusy(true);try{setSkills((await getSkillCatalog()).skills);setNotice('Proje ve kişisel skill talimatları listelendi.');}catch(e){setNotice(e instanceof Error?e.message:'Skill listesi alınamadı.');}finally{setBusy(false);}};
  return <details className="bb-session-controls bb-live-controls" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}><summary>Model · Efor · Mod · Skill</summary><div className="bb-session-control-body"><div className="bb-control-heading"><strong>Konuşma ayarları</strong><button aria-label="Konuşma ayarlarını kapat" onClick={()=>setExpanded(false)}>Kapat</button></div><div className="bb-session-control-grid">

@@ -16,7 +16,7 @@ async function main() {
     await initBrowserMock();
   }
   if(isBrowserRuntime&&!import.meta.env.DEV){
-    try{const response=await fetch(scopedUrl('/bibilen/api/roles'));if(!response.ok)throw new Error('Çalışma ortamı açılamadı.');const body=await response.json();configureRoster(body.roles,body.legacy);}catch{
+    try{const response=await fetch(scopedUrl('/bibilen/api/roles'));if(!response.ok)throw new Error('Çalışma ortamı açılamadı.');const body=await response.json();configureRoster(body.roles,body.legacy,body.agents);}catch{
       const root=document.getElementById('root')!;root.textContent='Bu çalışma ortamı açılamadı. Ana projeye dönmek için adresin workspaceId parametresini kaldır.';return;
     }
   }

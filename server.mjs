@@ -1,3 +1,4 @@
+import {ProjectCapabilities} from './project-capabilities.mjs';
 import {resolveSession} from './session-identity.mjs';
 import {ObserverSharing,observerItem} from './observer-sharing.mjs';
 import {searchConversations} from './conversation-search.mjs';
@@ -66,14 +67,17 @@ function getRuntime(workspaceId){
  if(runtimes.size>=20)throw new Error('En fazla 20 çalışma ortamı etkin olabilir.');
  const context=projects.context(workspaceId);
  mkdirSync(context.storageDir,{recursive:true,mode:0o700});chmodSync(context.storageDir,0o700);
- const roles=new Set(context.roles);
+ const capabilities=new ProjectCapabilities(context.cwd);
+ const roles=new Set(),nativeRoles=new Set();
+ const refreshCapabilities=()=>{context.assertValid();const inventory=capabilities.scan();roles.clear();nativeRoles.clear();for(const agent of inventory.agents)nativeRoles.add(agent.key);for(const key of ['chief',...nativeRoles])roles.add(key);return inventory;};
+ refreshCapabilities();
  const scopedPath=name=>join(context.storageDir,context.legacy?'bibilen-'+name+'.json':name+'.json');
  const push=new ScopedPush(accountPush,context,{legacy:context.legacy});
  const taskTerminals=new Map();
  const policy=new ProjectPolicy(scopedPath('project-policy'));
  const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
  const launchGuard=()=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode});
- const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,context,admission,launchGuard,checkNewWork:()=>policy.assertNewWork(),onNotice:(task,heading)=>push.send(task,heading)});
+ const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
  const spawnTerminal=(args,{session}={})=>{
   context.assertValid();
@@ -83,12 +87,12 @@ function getRuntime(workspaceId){
   admission.reserve(key,context.cwd);
   try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
- const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,tasks:()=>taskManager.data.tasks,
+ const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,nativeRoles,refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd),
+ const runtime={capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),
@@ -239,7 +243,7 @@ async function handleApi(req,res,url){
       if(projects.data.workspaces.length>=20)throw new Error('En fazla 20 çalışma ortamı kaydedilebilir.');
       const input=await readJson(req);if(input.templates!==undefined&&typeof input.templates!=='boolean')throw new Error('Ekip tercihi geçersiz.');const workspace=projects.register({name:input.name,path:input.path});
       if(input.templates){if(runtimes.has(workspace.id))throw new Error('Bu proje zaten etkin. Yerel ajan tanımlarını düzenleyip servisi yeniden başlatabilirsin.');installProjectProfiles(projects.context(workspace.id).cwd);}
-      getRuntime(workspace.id);sendJson(res,201,{workspace});return true;
+      const runtime=getRuntime(workspace.id);sendJson(res,201,{workspace,capabilities:runtime.capabilities.scan()});return true;
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/portfolio'){
       const items=await Promise.all(projects.data.workspaces.map(async w=>{const r=runtimes.get(w.id);const p=projects.data.projects.find(p=>p.id===w.projectId);let work=null;try{if(r)work=await r.workTracker.overview();}catch{}return {workspaceId:w.id,projectId:w.projectId,name:p.name,available:!!r&&!r.nativeFailed,tasks:r?r.taskManager.publicState(operator).tasks:[],inventoryAvailable:work?.inventoryAvailable??false,connectedSessions:work?.totalLiveSessions??work?.groups.length??0,workingMembers:work?.groups.flatMap(g=>g.members.filter(m=>m.liveState==='running').map(m=>({sessionId:g.sessionId,id:m.id,label:m.label,role:m.role})))??[]};}));
@@ -269,7 +273,8 @@ async function handleApi(req,res,url){
       if(req.method==='POST'&&remove){sendJson(res,200,observerSharing.unpublish(executionContext.projectId,remove[1],actor));return true;}
       sendJson(res,404,{error:'Paylaşım işlemi bulunamadı.'});return true;
     }
-    if(req.method==='GET'&&url.pathname==='/bibilen/api/roles'){sendJson(res,200,{roles:executionContext.roles,projectName:executionContext.projectName,legacy:executionContext.legacy});return true;}
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/capabilities'){if(!operator){sendJson(res,403,{error:'Proje tanımlarını yalnızca yönetici görebilir.'});return true;}sendJson(res,200,runtime.refreshCapabilities());return true;}
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/roles'){const inventory=runtime.refreshCapabilities();sendJson(res,200,{roles:[...runtime.roles],agents:inventory.agents,capabilities:operator?inventory:undefined,projectName:executionContext.projectName,legacy:executionContext.legacy});return true;}
 
     if(url.pathname.startsWith('/bibilen/api/operations')){if(!operator){sendJson(res,403,{error:'Operasyon kayıtlarını yalnızca yönetici inceleyebilir.'});return true;}
       if(req.method==='GET'&&url.pathname==='/bibilen/api/operations'){sendJson(res,200,operations.state());return true;}

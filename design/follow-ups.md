@@ -71,3 +71,7 @@ See [implementation plan](project-native-teams-plan-2026-10-12.md). New projects
 must discover their own agent/skill definitions, refresh them live and show the
 correct team without copying a shared roster. Local discovery is the first stage;
 Windows/WSL host connection, cross-host notifications and sharing acceptance follow.
+
+Project-native team plan stage 1 is implemented. See
+[local discovery acceptance](project-capabilities-acceptance-2026-10-12.md).
+In-place live office reconciliation and Windows host setup remain tracked work.

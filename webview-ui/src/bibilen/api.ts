@@ -110,3 +110,6 @@ export const grantObserver=(input:{login:string;name:string;days:number})=>reque
 export const revokeObserver=(id:string)=>request<SharingState>(`sharing/grants/${encodeURIComponent(id)}/revoke`,{method:'POST',body:'{}'});
 export const publishObserverItem=(input:{kind:string;sourceId:string;title:string;summary:string})=>request<SharingState>('sharing/items',{method:'POST',body:JSON.stringify(input)});
 export const removeObserverItem=(id:string)=>request<SharingState>(`sharing/items/${encodeURIComponent(id)}/remove`,{method:'POST',body:'{}'});
+
+export interface CapabilityInventory{revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;skills:string[]}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
+export const getCapabilities=()=>request<CapabilityInventory>('capabilities');

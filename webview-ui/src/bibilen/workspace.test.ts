@@ -15,3 +15,4 @@ describe('project profiles',()=>{
   expect(scopedUrl('/bibilen-session-terminal?id=123')).toContain('id=123');
  });
 });
+describe('project-native metadata',()=>{it('does not substitute another project’s known role metadata',()=>{configureRoster(['chief','finance-analyst'],false,[{key:'finance-analyst',name:'finance-analyst',description:'Only this project financial rules',skills:['budget'],skillLinks:[{name:'budget',available:false}]}]);expect(ROSTER.find(r=>r.key==='finance-analyst')?.description).toBe('Only this project financial rules');expect(ROSTER.find(r=>r.key==='finance-analyst')?.skills).toEqual(['budget · bulunamadı']);configureRoster(['chief'],false,[]);expect(ROSTER.length).toBe(1);expect(ROSTER[0].group).toBe('Ana oturum');});});

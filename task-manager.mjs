@@ -70,8 +70,8 @@ function initialData() {
 }
 
 export class TaskManager {
-  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = runCli, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{} }) {
-    this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
+  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = runCli, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{},nativeRoles }) {
+    this.nativeRoles=nativeRoles;this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
     this.context = context;
     this.admission = admission;
     this.cwd = context?.cwd ?? cwd;
@@ -227,6 +227,8 @@ export class TaskManager {
   async launchReserved(task) {
     if (this.context) {
       try {
+        this.checkNewWork?.();
+        if(!this.allowedRoles.has(task.role))throw Error('Bu ajan artık projede tanımlı değil; görevi uygun ajanla yeniden oluştur.');
         this.context.assertValid();
         if (task.workspaceId !== this.context.workspaceId || task.projectId !== this.context.projectId) throw new Error('Görev başka bir projeye ait.');
       } catch (error) { task.status='failed'; task.error=error.message; task.completedAt=Date.now(); this.save(); return; }
@@ -236,12 +238,12 @@ export class TaskManager {
     task.startedAt = Date.now();
     this.event(task.id, 'started', `${task.role} oturumu başlatılıyor.`);
     this.save();
-    const prompt = task.role === 'chief'
+    const prompt = task.role === 'chief'&&!this.nativeRoles?.has('chief')
       ? `${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak bu görevi yürüt. Gerektiğinde .claude/agents içindeki uygun uzmanları kullan.\n\nGörev: ${task.prompt}`
       : task.prompt;
     let guardArgs;try{guardArgs=this.launchGuard?.()??[];}catch{task.status='failed';task.stage='failed';task.error='Araç koruması hazırlanamadı; görev başlatılmadı.';task.completedAt=Date.now();this.save();return;}
     const args = ['--bg', '--name', task.sessionName, '--permission-mode', 'default',...guardArgs];
-    if (task.role !== 'chief') args.push('--agent', task.role);
+    if (task.role !== 'chief'||this.nativeRoles?.has('chief')) args.push('--agent', task.role);
     args.push(prompt);
     let result;
     try {
