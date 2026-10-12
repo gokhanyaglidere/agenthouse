@@ -5,6 +5,7 @@ export async function loadSkillDraft(fetcher:(id:string)=>Promise<{name:string;b
  const start=current();if(!start.alive||!start.selectedId)return 'discarded';
  const result=await fetcher(start.selectedId),next=current();
  if(!next.alive)return 'discarded';
+ if(!result||typeof result.name!=='string'||typeof result.body!=='string'||!result.name.trim()||result.name.length>256||!result.body.trim()||result.body.length>16000)throw Error('Skill yanıtı doğrulanamadı; taslak korunuyor.');
  if(start.generation!==next.generation||start.selectedId!==next.selectedId)return 'changed';
  return next.stage(`Skill: ${result.name}\n\n${result.body}`)?'inserted':'occupied';
 }

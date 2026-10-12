@@ -1,3 +1,4 @@
+import {hasNativeWork} from './native-work-state.mjs';
 import {runCli} from './cli-command.mjs';
 import { randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -202,7 +203,7 @@ export class TaskManager {
     const active = new Set([...this.data.tasks.filter(task => ['starting', 'running', 'waiting'].includes(task.status)).map(task => task.id), ...this.launching]).size;
     const free = active?0:Math.min(1,Math.max(0,this.data.settings.maxConcurrent));
     if(!free||this.admission?.workspaceBusy(this.cwd))return;
-    if(this.context&&this.admission&&this.data.tasks.some(t=>t.status==='queued')){const agents=await this.listAgents();const external=agents?.some(a=>a.cwd===this.cwd&&['working','running','blocked','waiting','busy'].includes(a.state??a.status));if(!agents||external){for(const task of this.data.tasks.filter(t=>t.status==='queued'))task.queueReason=!agents?'Canlı CLI durumu doğrulanamadı; güvenli başlangıç bekleniyor.':'Bu klasörde CLI işi var; bitmesi bekleniyor.';this.save();return;}}
+    if(this.context&&this.admission&&this.data.tasks.some(t=>t.status==='queued')){const agents=await this.listAgents();const external=agents?.some(a=>a.cwd===this.cwd&&hasNativeWork(a));if(!agents||external){for(const task of this.data.tasks.filter(t=>t.status==='queued'))task.queueReason=!agents?'Canlı CLI durumu doğrulanamadı; güvenli başlangıç bekleniyor.':'Bu klasörde CLI işi var; bitmesi bekleniyor.';this.save();return;}}
     const next = this.data.tasks
       .filter((task) => task.status === 'queued')
       .sort((a, b) => {

@@ -1,3 +1,6 @@
+import {teamSyncKey} from './team-sync-key.js';
+import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
+import {applyRosterTransaction} from './roster-transaction.js';
 import {CapabilityRefresh} from './capability-refresh.js';
 import {reconcileTeamLayout} from './team-layout.js';
 import {SharingPanel} from './SharingPanel.js';
@@ -17,7 +20,7 @@ import {transport} from '../transport/index.js';
 import {getState,getWorkOverview,getAppearance,getNotifications,getCapabilities,type CapabilityInventory} from './api.js';
 import {AppearancePanel,type Ambience} from './AppearancePanel.js';
 import {makeLayout,COZY_ROOMS,type Theme} from './layouts.js';
-import {ROSTER,residentId,isResident,reconcileRoster} from './roster.js';
+import {ROSTER,residentId,isResident} from './roster.js';
 import {syncResidents} from './residents.js';
 import {SessionDirectory} from './SessionDirectory.js';
 import {NotificationCenter} from './NotificationCenter.js';
@@ -121,17 +124,22 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef,onEd
  const catalogState=useRef({state,work,selected,theme});catalogState.current={state,work,selected,theme};
  useEffect(()=>{
   if(!state.operator)return;
-  let signature='';
+  let signature='',publishedRevision='';
   const refresh=new CapabilityRefresh(getCapabilities,state.context?.workspaceId??workspaceId,value=>{
    const current=catalogState.current;const activeRoles=[...current.state.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.role),...current.work.groups.filter(g=>g.live).flatMap(g=>g.members.filter(m=>!!m.liveState&&m.liveState!=='closed').map(m=>m.role).filter((key):key is string=>!!key)),...[...office.characters.values()].filter(ch=>!isResident(ch.id)&&!ch.sessionHidden&&ch.matrixEffect!=='despawn').map(ch=>office.agentRoleKeys.get(ch.id)).filter((key):key is string=>!!key)];
-   const nextSignature=value.revision+':'+[...new Set(activeRoles)].sort().join(',');setCatalogError('');
-   if(signature===nextSignature)return;signature=nextSignature;
+   const assetsReady=!!getCatalogEntry('BB_WORK_DESK')&&!!getCatalogEntry('BB_OFFICE_BACK');const nextSignature=teamSyncKey(value.revision,activeRoles,office.getLayout(),assetsReady);setCatalogError('');
+   if(signature===nextSignature)return;
    const previousKeys=ROSTER.map(r=>r.key);const selectedKey=current.selected===null?null:ROSTER[current.selected]?.key;
-   reconcileRoster(value.agents,activeRoles);const nextKeys=ROSTER.map(r=>r.key);
+   const beforeLayout=office.getLayout();
+   applyRosterTransaction(value.agents,activeRoles,()=>{const nextKeys=ROSTER.map(r=>r.key);
+   try{
    const currentLayout=office.getLayout();const layoutKeys=currentLayout.furniture.filter(f=>f.uid.startsWith('desk-')&&currentLayout.furniture.some(s=>s.uid==='seat-'+f.uid.slice(5))).map(f=>f.uid.slice(5));
    if(previousKeys.join(',')!==nextKeys.join(',')||nextKeys.some(k=>!currentLayout.furniture.some(f=>f.uid==='desk-'+k)||!currentLayout.furniture.some(f=>f.uid==='seat-'+k))||layoutKeys.some(k=>!nextKeys.includes(k))){const layout=reconcileTeamLayout(currentLayout,makeLayout(current.theme),[...new Set([...previousKeys,...layoutKeys])],nextKeys);office.rebuildFromLayout(layout);onLayout(layout);}
+   }catch(error){try{office.rebuildFromLayout(beforeLayout);onLayout(beforeLayout);}catch{}throw error;}
+   });
+   signature=teamSyncKey(value.revision,activeRoles,office.getLayout(),assetsReady);
    if(selectedKey){const index=ROSTER.findIndex(r=>r.key===selectedKey);setSelected(index<0?null:index);}
-   setCatalog(value);setCatalogVersion(n=>n+1);window.dispatchEvent(new CustomEvent('agent-house-capabilities',{detail:value}));
+   setCatalog(value);setCatalogVersion(n=>n+1);if(publishedRevision!==value.revision){publishedRevision=value.revision;window.dispatchEvent(new CustomEvent('agent-house-capabilities',{detail:value}));}
   },()=>setCatalogError('Ekip tanımları güncellenemedi; son doğrulanan ekip gösteriliyor.'));
   const check=()=>{if(document.visibilityState==='visible')void refresh.refresh();};check();const timer=setInterval(check,5000);window.addEventListener('focus',check);document.addEventListener('visibilitychange',check);
   return()=>{refresh.close();clearInterval(timer);window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};

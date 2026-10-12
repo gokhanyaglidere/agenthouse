@@ -1,13 +1,21 @@
 import {parseDocument} from 'yaml';
 import {createHash} from 'node:crypto';
-import {lstatSync,realpathSync,readFileSync,readdirSync,existsSync} from 'node:fs';
+import {lstatSync,realpathSync,readdirSync,existsSync,openSync,closeSync,fstatSync,readSync,constants} from 'node:fs';
 import {join,relative,resolve} from 'node:path';
 import {homedir} from 'node:os';
 const inside=(base,path)=>{const rel=relative(base,path);return rel!==''&&!rel.startsWith('..')&&!rel.startsWith('/');};
+export function readScopedText(path,root){
+ const base=realpathSync(root),actual=realpathSync(path),before=lstatSync(path);
+ if(!inside(base,actual)||before.isSymbolicLink()||!before.isFile()||before.size>64000)throw Error('Dosya güvenli kapsamın dışında veya çok büyük.');
+ const fd=openSync(path,constants.O_RDONLY|constants.O_NOFOLLOW);
+ try{const opened=fstatSync(fd);if(!opened.isFile()||opened.dev!==before.dev||opened.ino!==before.ino||opened.size>64000)throw Error('Tanım dosyasının kimliği değişti.');
+  const bytes=Buffer.alloc(64001);let size=0;while(size<bytes.length){const n=readSync(fd,bytes,size,bytes.length-size,size);if(!n)break;size+=n;}
+  const after=fstatSync(fd);if(size>64000||after.size!==opened.size||after.mtimeMs!==opened.mtimeMs||realpathSync(path)!==actual)throw Error('Tanım dosyası okuma sırasında değişti veya boyut sınırını aştı.');
+  return bytes.subarray(0,size).toString('utf8');
+ }finally{closeSync(fd);}
+}
 export function readDefinition(path,root,{skill=false}={}){
- const base=realpathSync(root),actual=realpathSync(path),stat=lstatSync(path);
- if(!inside(base,actual)||stat.isSymbolicLink()||!stat.isFile()||stat.size>64000)throw Error('Dosya güvenli kapsamın dışında veya çok büyük.');
- const text=readFileSync(actual,'utf8'),match=text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+ const text=readScopedText(path,root),match=text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
  const hash=createHash('sha256').update(text).digest('hex');
  if(!match){if(skill)return {metadata:{},body:text.trim(),hash};throw Error('YAML başlığı eksik.');}
  const document=parseDocument(match[1],{uniqueKeys:true});if(document.errors.length){if(skill)return {metadata:{},body:text.trim(),hash,warning:'YAML başlığı geçersiz; skill düz metin olarak keşfedildi.'};throw Error('YAML başlığı geçersiz.');}
@@ -26,7 +34,7 @@ export class ProjectCapabilities{
   const dir=join(root,'.claude','agents');for(const entry of entries(dir,root)){if(!entry.name.endsWith('.md')||entry.isSymbolicLink())continue;const path=join(dir,entry.name);try{const {metadata,body,hash}=readDefinition(path,dir);const key=typeof metadata.name==='string'?metadata.name.trim():'';if(!key||key.startsWith('-')||key.length>256||/[:\x00-\x1f\x7f]/.test(key)||!label(metadata.description))throw Error('Ajan adı, açıklaması veya talimatı eksik/geçersiz.');if(duplicateAgents.has(key)||agents.some(a=>a.key===key)){duplicateAgents.add(key);throw Error('Aynı ajan adı birden fazla dosyada tanımlı; bu adla yeni iş başlatılamaz.');}const refs=strings(metadata.skills);const skillLinks=refs.map(name=>{const matches=skills.filter(s=>s.native&&(s.name===name||s.folder===name));const scoped=matches.some(s=>s.scope==='project')?matches.filter(s=>s.scope==='project'):matches;const skill=scoped.length===1?scoped[0]:undefined;return {name,available:!!skill&&skill.preloadable,source:skill?.source??null,path:skill?.path??null,reason:scoped.length>1?'Skill adı birden fazla tanımla eşleşiyor.':skill&&!skill.preloadable?'Skill otomatik yükleme için kapalı.':!skill?'Skill bulunamadı.':null};});agents.push({key,name:key,description:label(metadata.description,2000),group:'Proje ajanları',model:label(metadata.model),tools:strings(metadata.tools),skills:refs,skillLinks,path:relative(root,path),scope:'project',hash});for(const link of skillLinks.filter(s=>!s.available))diagnostics.push({path:relative(root,path),message:link.name+' · '+link.reason});}catch(error){diagnostics.push({path:relative(root,path),message:error.message});}}
   const instructions=['CLAUDE.md','CLAUDE.local.md','.claude/CLAUDE.md'].filter(path=>{try{return inside(root,realpathSync(join(root,path)))&&lstatSync(join(root,path)).isFile();}catch{return false;}});
   for(let i=agents.length-1;i>=0;i--)if(duplicateAgents.has(agents[i].key))agents.splice(i,1);
-  const instructionHashes=instructions.map(path=>{const file=join(root,path),stat=lstatSync(file);if(stat.size>64000){diagnostics.push({path,message:'Talimat dosyası özet tarama sınırını aşıyor; içerik değişimleri bu taramada izlenmiyor.'});return {path,hash:null};}return {path,hash:createHash('sha256').update(readFileSync(file)).digest('hex')};});
+  const instructionHashes=instructions.map(path=>{const file=join(root,path),stat=lstatSync(file);if(stat.size>64000){diagnostics.push({path,message:'Talimat dosyası özet tarama sınırını aşıyor; içerik değişimleri bu taramada izlenmiyor.'});return {path,hash:null};}return {path,hash:createHash('sha256').update(readScopedText(file,root)).digest('hex')};});
   const data={agents,skills,diagnostics,instructions,instructionHashes};const revision=createHash('sha256').update(JSON.stringify(data)).digest('hex').slice(0,16);
   return {...data,revision,scannedAt:Date.now()};
  }

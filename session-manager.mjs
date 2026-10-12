@@ -1,3 +1,4 @@
+import {hasNativeWork} from './native-work-state.mjs';
 import {sessionOptions,sessionOptionArgs} from './session-options.mjs';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -139,7 +140,7 @@ export class SessionManager{
     const agent=inventory.agents.find(a=>a.sessionId===id);
     if(agent?.kind==='background'&&!this.canAttach(id))throw new Error('Bu görev terminali başka bir panelde açık. Önce onu kapat.');
     if(agent?.kind!=='background'&&agent&&(ACTIVE.has(agent.state)||ACTIVE.has(agent.status)))throw new Error('Oturum başka bir terminalde açık. Önce orada kapat.');
-    if(agent?.kind!=='background'&&inventory.agents.some(a=>a.sessionId!==id&&['working','running','blocked','waiting','busy'].includes(a.state??a.status)))throw Error('Bu klasörde çalışan CLI işi var; bitmesini bekle.');
+    if(agent?.kind!=='background'&&inventory.agents.some(a=>a.sessionId!==id&&hasNativeWork(a)))throw Error('Bu klasörde çalışan CLI işi var; bitmesini bekle.');
     const args=agent?.kind==='background'?['attach',agent.id??id]:session.hasTranscript?['--resume',id,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])]:['--session-id',id,'--name',session.title,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])];
     if(!agent&&!session.hasTranscript){this.refreshRoles();if(session.role&&!this.roles.has(session.role))throw Error('Ajan tanımı artık bu projede yok; farklı bir ajan seç.');if(session.role&&(session.role!=='chief'||this.nativeRoles?.has('chief')))args.push('--agent',session.role);else args.push('--append-system-prompt',`${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Gerektiğinde .claude/agents içindeki uzmanları kullan.`);}
     if(ws.readyState!==1)return;

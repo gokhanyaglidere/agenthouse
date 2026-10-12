@@ -92,7 +92,7 @@ function getRuntime(workspaceId){
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd),
+ const runtime={capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd,{assertValid:()=>context.assertValid()}),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),

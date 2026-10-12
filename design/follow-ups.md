@@ -85,3 +85,8 @@ Local gap recheck completed: additional discovery, duplicate-identity, draft-rac
 payload-validation and partial-workstation defects were corrected. See
 [recheck results and explicit boundaries](local-gap-recheck-2026-10-12.md).
 Final local verification: 176 backend + 85 UI tests; build passed; audit zero.
+
+Repeated gap rounds completed at the owner's request. Three fix rounds followed
+by a fourth review with zero new reproduced findings. See
+[round-by-round evidence](gap-rounds-2026-10-12.md). Final regression total: 270.
+Windows connection and physical-device acceptance remain explicitly deferred.
