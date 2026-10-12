@@ -487,3 +487,39 @@ div:has(>.bb-shell .bb-session-focus)>.bb-native-tool{visibility:hidden}
 .bb-session-control-grid select{width:100%;min-height:44px;background:var(--ink);color:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}
 .bb-session-controls p,.bb-session-controls small{font-size:12px;line-height:1.6;color:var(--muted)}
 @media(max-width:800px){.bb-session-control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bb-session-controls{padding:8px 12px}.bb-session-control-grid select{font-size:16px}}
+
+/* Session directory: one toolbar, active-first inventory and secondary details. */
+.bb-sessions>.bb-session-heading{flex-direction:row;align-items:center;gap:12px;margin-bottom:18px}
+.bb-sessions>.bb-session-heading h1{margin:0;font-size:24px}
+.bb-sessions>.bb-session-heading>.bb-session-actions{width:auto;flex-wrap:nowrap}
+.bb-sessions>.bb-session-heading>.bb-session-actions .bb-session-refresh{width:44px;flex:none;padding:0}
+.bb-sessions>.bb-session-heading>.bb-session-actions .bb-session-refresh svg{display:block}
+.bb-session-search{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px}
+.bb-session-search>input{flex:1;min-width:0;width:100%;min-height:44px}
+.bb-session-search>.bb-catalog-options{width:auto;min-width:100px;margin:0}
+.bb-session-search>.bb-catalog-options[open]{flex:1}
+.bb-session-search>.bb-catalog-options summary{padding:0 10px;border:1px solid var(--line);border-radius:10px;white-space:nowrap;color:var(--paper)}
+.bb-session-search>.bb-catalog-options select{color:var(--paper)}
+.bb-session-status-tabs{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--ink);border:1px solid var(--line)}
+.bb-session-status-tabs button{flex:1;background:transparent;border:0;min-height:40px;padding:6px 12px;color:var(--muted)}
+.bb-session-status-tabs button[aria-pressed=true]{background:var(--panel-2);color:var(--paper);box-shadow:0 2px 5px #0002}
+.bb-session-catalog .bb-catalog-count{margin:12px 0;font-size:12px}
+.bb-session-catalog .bb-session-list{gap:10px}
+.bb-session-catalog .bb-session-list article{padding:16px;gap:12px;background:var(--ink);border-radius:12px}
+.bb-session-catalog .bb-session-list article h2{font-size:16px!important;line-height:1.4;margin:8px 0 4px!important}
+.bb-session-catalog .bb-session-list article time{margin:0;display:block}
+.bb-session-catalog .bb-catalog-actions{flex-shrink:0;align-items:center}
+.bb-session-more{width:100%;margin:14px 0}
+.bb-session-extra{border-bottom:1px solid var(--line);padding:8px 0;margin:8px 0 16px;color:var(--muted)}
+.bb-session-extra>summary,.bb-terminal-key-menu>summary{cursor:pointer;min-height:36px;align-content:center;font-size:13px}
+.bb-session-extra>div{padding:10px 0}
+.bb-live-controls{max-height:none;overflow:visible;padding:4px 16px}
+.bb-live-controls summary{font-size:13px;color:var(--muted);min-height:32px}
+.bb-live-controls .bb-session-control-body{position:absolute;z-index:4;top:130px;left:12px;right:12px;max-height:calc(100% - 190px);overflow:auto;overscroll-behavior:contain;background:var(--navy);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 40px #0009}
+.bb-control-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.bb-control-heading>button{min-height:40px}
+.bb-terminal-key-menu{margin-top:6px;font-size:12px}
+@media(max-width:700px){.bb-session-catalog .bb-session-list article{flex-direction:column;align-items:stretch}.bb-catalog-actions button{flex:1}.bb-session-search>.bb-catalog-options[open]{flex:none;width:48%}.bb-live-controls .bb-session-control-body{top:130px}.bb-session-heading .bb-primary{font-size:13px}}
+.bb-session-catalog .bb-session-list article>div:first-child p,.bb-session-catalog .bb-session-list article>div:first-child time{display:inline;font-size:12px;line-height:1.6}
+.bb-session-catalog .bb-session-list article>div:first-child time{margin-left:10px}
+@media(min-width:581px) and (max-width:900px){.bb-session-catalog .bb-session-list article{flex-direction:row;align-items:center;padding:14px}.bb-session-catalog .bb-catalog-actions{flex-direction:column;min-width:156px;max-width:180px}.bb-session-catalog .bb-catalog-actions button{width:100%;padding:8px 10px}}
