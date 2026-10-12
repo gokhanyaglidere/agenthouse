@@ -1,9 +1,11 @@
 # Agent House — project sharing and team collaboration
 
-Status: proposed architecture, not enabled. No identities have been invited, no
-permissions expanded, and no public endpoint has been created.
+Status: the owner selected read-only observers using their own Tailscale accounts.
+That subset is implemented; see [observer acceptance](observer-sharing-acceptance-2026-10-12.md).
+The higher collaboration roles below remain a future architecture. No real identity
+has been invited or granted access and no public endpoint has been created.
 
-## Current verified boundary
+## Verified baseline before observer implementation
 
 AccessPolicy has global operator/viewer roles. Project listings, account catalog,
 portfolio, several transcript/work GET routes and office sockets are not filtered

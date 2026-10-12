@@ -1,3 +1,4 @@
+import {request as rawHttpRequest} from 'node:http';
 import test from 'node:test';import assert from 'node:assert/strict';
 import WebSocket from 'ws';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,realpathSync} from 'node:fs';import {tmpdir} from 'node:os';import {join,dirname} from 'node:path';import {fileURLToPath} from 'node:url';import {spawn} from 'node:child_process';import net from 'node:net';
@@ -15,7 +16,8 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
  t.after(async()=>{child.kill('SIGTERM');await Promise.race([new Promise(r=>child.once('exit',r)),new Promise(r=>setTimeout(r,3000))]);if(child.exitCode===null)child.kill('SIGKILL');rmSync(root,{recursive:true,force:true});});
  const base=`http://127.0.0.1:${port}`;
- async function request(path,{workspace,body,headers={}}={}){const r=await fetch(base+'/bibilen/api/'+path,{method:body?'POST':'GET',headers:{origin:base,'Content-Type':'application/json',...(workspace?{'x-workspace-id':workspace}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
+ async function request(path,{workspace,body,headers={}}={}){return new Promise((resolve,reject)=>{const req=rawHttpRequest(base+'/bibilen/api/'+path,{method:body?'POST':'GET',headers:{origin:base,'Content-Type':'application/json',...(workspace?{'x-workspace-id':workspace}:{}),...headers}},res=>{let text='';res.on('data',d=>text+=d);res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(text)});}catch(e){reject(e);}});});req.on('error',reject);req.end(body?JSON.stringify(body):undefined);});}
+
  const inventory=await waitUntil(async()=>{const r=await request('projects');if(r.status!==200)throw Error();return r.body;});
  const aid=inventory.defaultWorkspaceId;const registration=await request('projects',{body:{name:'Fixture B',path:b}});assert.equal(registration.status,201,output);const bid=registration.body.workspace.id;
  assert.notEqual(aid,bid);
@@ -39,6 +41,27 @@ test('isolated gateway routes two real workspace contexts without crossing recor
 
  const task=await request('tasks',{workspace:aid,body:{title:'Only A task',prompt:'Fixture instruction',role:'chief',workspaceId:bid}});assert.equal(task.status,201);assert.equal(task.body.task.workspaceId,aid);
  assert.equal((await request('state',{workspace:bid})).body.tasks.length,0);
+ // Observer fixtures are isolated to this temporary gateway; no real grants occur.
+ const alice={host:'office.example',origin:'https://office.example','tailscale-user-login':'alice@example.com'};
+ const bob={...alice,'tailscale-user-login':'bob@example.com'};
+ const emptyObserver=await request('viewer/projects',{headers:alice});assert.equal(emptyObserver.status,200,JSON.stringify(emptyObserver.body));assert.equal(emptyObserver.body.projects.length,0);
+ const grant=await request('sharing/grants',{workspace:aid,body:{login:'alice@example.com',name:'Alice',days:7}});assert.equal(grant.status,200);const grantId=grant.body.grants[0].id;
+ const visible=(await request('viewer/projects',{headers:alice})).body;assert.equal(visible.projects.length,1);assert.equal(visible.workspaces[0].id,aid);assert.equal(JSON.stringify(visible).includes(b),false);
+ assert.equal((await request('viewer/state',{workspace:bid,headers:alice})).status,403);
+ assert.equal((await request('viewer/state',{workspace:aid,headers:bob})).status,403);
+ const publication=await request('sharing/items',{workspace:aid,body:{kind:'task',sourceId:task.body.task.id,title:'Approved progress',summary:'Owner approved result'}});assert.equal(publication.status,200);
+ assert.equal((await request('sharing/items',{workspace:bid,body:{kind:'task',sourceId:task.body.task.id,title:'Wrong project',summary:''}})).status,400);
+ const observed=await request('viewer/state',{workspace:aid,headers:alice});assert.equal(observed.status,200);assert.equal(observed.body.items[0].title,'Approved progress');assert.equal(observed.body.items[0].summary,'Owner approved result');assert.equal(JSON.stringify(observed.body).includes('Fixture instruction'),false);assert.equal(JSON.stringify(observed.body).includes(task.body.task.id),false);
+ for(const path of ['projects','portfolio','state','roles','appearance','usage','sessions','session-catalog',`sessions/${sa.body.session.id}/transcript`,`sessions/${sa.body.session.id}/changes`,`sessions/${sa.body.session.id}/work`,`tasks/${task.body.task.id}/work`,`tasks/${task.body.task.id}/logs`,'work/overview','conversation-search?q=scoped','notifications?scope=all','backups/export','sharing','push-key'])assert.equal((await request(path,{workspace:aid,headers:alice})).status,403,path);
+ assert.equal((await request('tasks',{workspace:aid,headers:alice,body:{title:'Forbidden',prompt:'No',role:'chief'}})).status,403);
+ assert.equal((await request('sharing/grants',{workspace:aid,headers:alice,body:{login:'bob@example.com',days:7}})).status,403);
+ const socketDenied=await new Promise((resolve,reject)=>{const ws=new WebSocket(`ws://127.0.0.1:${port}/ws?workspaceId=${aid}`,{headers:alice});ws.on('open',()=>{ws.close();reject(Error('Observer native socket accepted'));});ws.on('unexpected-response',(_,response)=>{resolve(response.statusCode);ws.terminate();});ws.on('error',()=>{});});assert.equal(socketDenied,403);
+ const nativeLeak=await fetch(base+'/assets/private-catalog.json',{headers:alice});assert.equal(nativeLeak.status,403);
+ const ownPreview=await request('viewer/state',{workspace:aid});assert.equal(ownPreview.status,200);assert.equal(ownPreview.body.preview,true);
+ assert.equal((await request(`sharing/grants/${grantId}/revoke`,{workspace:bid,body:{}})).status,400);
+ assert.equal((await request(`sharing/grants/${grantId}/revoke`,{workspace:aid,body:{}})).status,200);
+ assert.equal((await request('viewer/state',{workspace:aid,headers:alice})).status,403);assert.equal((await request('viewer/projects',{headers:alice})).body.projects.length,0);
+
  assert.equal((await request('state',{workspace:bid})).body.context.workspaceId,bid);
  assert.equal((await request('state?workspaceId='+aid,{workspace:bid})).status,400);
  assert.equal((await request('state',{workspace:'unknown'})).status,400);

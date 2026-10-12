@@ -52,4 +52,8 @@ operator/viewer system is not project-isolated multiuser access. See
 [team collaboration architecture](team-collaboration-2026-10-12.md) for verified
 current gaps, role/capability matrix, identity and invitation flow, scoped session
 visibility, notifications, attribution, execution identities and rollout tests.
-The design is recorded; memberships, invitations and public access are not enabled.
+The owner chose read-only Tailscale observers. Project-scoped grants, explicit
+progress/result publication, revocation, expiry and an isolated observer portal
+are implemented; see [acceptance](observer-sharing-acceptance-2026-10-12.md).
+Actual coworker identities/network permissions are still needed for onboarding.
+Other collaboration roles, personal observer push and public access remain future scope.

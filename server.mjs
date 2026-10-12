@@ -1,3 +1,4 @@
+import {ObserverSharing,observerItem} from './observer-sharing.mjs';
 import {searchConversations} from './conversation-search.mjs';
 import {SkillCatalog} from './skill-catalog.mjs';
 import {ToolGuard} from './tool-guard.mjs';
@@ -21,8 +22,8 @@ import {TerminalBroker} from './terminal-broker.mjs';
 import {AccessPolicy} from './access-policy.mjs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { dirname,join,resolve } from 'node:path';
-import { existsSync,mkdirSync,chmodSync } from 'node:fs';
+import { dirname,join,resolve,extname } from 'node:path';
+import { existsSync,mkdirSync,chmodSync,readFileSync,realpathSync,statSync } from 'node:fs';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as pty from 'node-pty';
 import { authorizedControl, authorizedRequest, validHost, validOrigin } from './control-auth.mjs';
@@ -48,6 +49,7 @@ process.env.PATH=`/opt/homebrew/bin:/usr/local/bin:${process.env.PATH??'/usr/bin
 const claudePath=process.env.BIBILEN_CLAUDE_PATH??(existsSync('/opt/homebrew/bin/claude')?'/opt/homebrew/bin/claude':'claude');
 const executionHealth=new ExecutionHealth(claudePath,join(homedir(),'.pixel-agents','bibilen-execution-health.json'));
 const accessPolicy=new AccessPolicy();
+const observerSharing=new ObserverSharing(join(homedir(),'.pixel-agents','agent-house-sharing.json'));
 const accountPush=new PushManager();
 const stateBackup=new StateBackup(join(homedir(),'.pixel-agents'));
 try{stateBackup.create({daily:true});}catch{}
@@ -185,9 +187,47 @@ function readJson(req){return new Promise((resolveBody,reject)=>{
   req.on('end',()=>{try{resolveBody(raw?JSON.parse(raw):{});}catch{reject(new Error('Geçersiz JSON.'));}});
   req.on('error',reject);
 });}
+function observerProjects(req){
+ const owner=accessPolicy.canWrite(req.headers),login=accessPolicy.identity(req.headers);
+ const allowed=projects.data.projects.filter(p=>owner||observerSharing.allowed(login,p.id));
+ return {projects:allowed.map(p=>({id:p.id,name:p.name})),workspaces:projects.data.workspaces.filter(w=>allowed.some(p=>p.id===w.projectId)).map(w=>({id:w.id,projectId:w.projectId})),preview:owner};
+}
+async function handleObserverApi(req,res,url){
+ if(req.method!=='GET'||!['/bibilen/api/viewer/projects','/bibilen/api/viewer/state'].includes(url.pathname)){sendJson(res,403,{error:'Bu işlem izleyici erişiminde kapalı.'});return true;}
+ const owner=accessPolicy.canWrite(req.headers),login=accessPolicy.identity(req.headers);
+ if(!login){sendJson(res,403,{error:'Kendi Tailscale hesabınla bağlanmalısın.'});return true;}
+ const visible=observerProjects(req);
+ if(url.pathname.endsWith('/projects')){sendJson(res,200,visible);return true;}
+ let id;try{id=workspaceScope(url,req.headers,visible.workspaces[0]?.id);}catch{sendJson(res,403,{error:'Bu projeye erişimin yok.'});return true;}
+ const workspace=visible.workspaces.find(w=>w.id===id);
+ if(!workspace){sendJson(res,403,{error:'Bu projeye erişimin yok.'});return true;}
+ const shared=observerSharing.state(workspace.projectId);if(shared.error){sendJson(res,503,{error:shared.error});return true;}
+ const items=[];const inventories=new Map();
+ for(const item of shared.items){
+  const source=projects.data.workspaces.find(w=>w.id===item.workspaceId&&w.projectId===workspace.projectId);
+  if(!source)continue;
+  let data=inventories.get(source.id);
+  if(!data){try{const r=getRuntime(source.id);const [sessions,work]=await Promise.all([r.sessionManager.list(),r.workTracker.overview()]);data={r,sessions,work};}catch{data={unavailable:true};}inventories.set(source.id,data);}
+  const task=data.r?.taskManager.get(item.kind==='task'?item.sourceId:'');
+  const session=data.sessions?.sessions.find(s=>s.id===(item.kind==='session'?item.sourceId:task?.sessionId));
+  const trace=data.work?.groups.find(g=>g.sessionId===session?.id);
+  items.push(observerItem(item,{task,session,trace,inventoryAvailable:!data.unavailable&&data.sessions?.inventoryAvailable&&data.work?.inventoryAvailable}));
+ }
+ // Membership may have expired or been revoked while reading live state.
+ if(!owner&&!observerSharing.allowed(login,workspace.projectId)){sendJson(res,403,{error:'Bu projeye erişimin kaldırılmış veya süresi dolmuş.'});return true;}
+ sendJson(res,200,{projectName:visible.projects.find(p=>p.id===workspace.projectId)?.name,items,checkedAt:Date.now(),preview:owner});return true;
+}
+function serveObserverPage(req,res,url){
+ const root=join(here,'build','webview');let path;
+ if(url.pathname==='/'||url.pathname==='/observer.html')path=join(root,'observer.html');
+ else if(/^\/assets\/[a-zA-Z0-9._-]+\.(js|css|png|woff2?)$/.test(url.pathname))path=join(root,url.pathname.slice(1));
+ else {res.writeHead(403,{'Cache-Control':'no-store'});res.end('Observer access only');return;}
+ try{const canonical=realpathSync(path);if(!canonical.startsWith(realpathSync(root)+'/')||!statSync(canonical).isFile())throw Error();const body=readFileSync(canonical);const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.woff':'font/woff','.woff2':'font/woff2'}[extname(canonical)];res.writeHead(200,{'Content-Type':mime??'application/octet-stream','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"});res.end(req.method==='HEAD'?undefined:body);}catch{res.writeHead(503,{'Cache-Control':'no-store'});res.end('Observer page is not ready');}
+}
 async function handleApi(req,res,url){
   const operator=accessPolicy.canWrite(req.headers);
   try{
+    if(!operator||url.pathname.startsWith('/bibilen/api/viewer/'))return await handleObserverApi(req,res,url);
     if(req.method==='GET'&&url.pathname==='/bibilen/api/session-catalog'){sendJson(res,200,await sessionCatalog.list());return true;}
     const catalogMatch=url.pathname.match(/^\/bibilen\/api\/session-catalog\/([^/]+)\/transcript$/);
     if(req.method==='GET'&&catalogMatch){sendJson(res,200,await sessionCatalog.transcript(decodeURIComponent(catalogMatch[1]),url.searchParams.has('before')?url.searchParams.get('before'):undefined));return true;}
@@ -210,6 +250,23 @@ async function handleApi(req,res,url){
     if(url.pathname==='/bibilen/api/backups'){if(!operator){sendJson(res,403,{error:'Yedekleri yalnızca yönetici görebilir.'});return true;}if(req.method==='POST')stateBackup.create();sendJson(res,200,stateBackup.state());return true;}
     const runtime=getRuntime(workspaceScope(url,req.headers,defaultWorkspace.id));
     const {context:executionContext,cwd,taskManager,sessionManager,workTracker,appearance,integrations,slackAlarms,dailyReports,operations,pushManager}=runtime;
+    if(url.pathname.startsWith('/bibilen/api/sharing')){
+      const actor=accessPolicy.identity(req.headers);
+      if(req.method==='GET'&&url.pathname==='/bibilen/api/sharing'){sendJson(res,200,observerSharing.state(executionContext.projectId));return true;}
+      if(req.method==='POST'&&url.pathname==='/bibilen/api/sharing/grants'){sendJson(res,200,observerSharing.grant(executionContext.projectId,await readJson(req),actor));return true;}
+      const revoke=url.pathname.match(/^\/bibilen\/api\/sharing\/grants\/([^/]+)\/revoke$/);
+      if(req.method==='POST'&&revoke){sendJson(res,200,observerSharing.revoke(executionContext.projectId,revoke[1],actor));return true;}
+      if(req.method==='POST'&&url.pathname==='/bibilen/api/sharing/items'){
+        const input=await readJson(req);
+        if(input.kind==='task'){if(!taskManager.get(input.sourceId))throw Error('Bu projede görev bulunamadı.');}
+        else if(input.kind==='session')await sessionManager.known(input.sourceId);
+        else throw Error('Geçersiz paylaşım türü.');
+        sendJson(res,200,observerSharing.publish(executionContext.projectId,{...input,workspaceId:executionContext.workspaceId},actor));return true;
+      }
+      const remove=url.pathname.match(/^\/bibilen\/api\/sharing\/items\/([^/]+)\/remove$/);
+      if(req.method==='POST'&&remove){sendJson(res,200,observerSharing.unpublish(executionContext.projectId,remove[1],actor));return true;}
+      sendJson(res,404,{error:'Paylaşım işlemi bulunamadı.'});return true;
+    }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/roles'){sendJson(res,200,{roles:executionContext.roles,projectName:executionContext.projectName,legacy:executionContext.legacy});return true;}
 
     if(url.pathname.startsWith('/bibilen/api/operations')){if(!operator){sendJson(res,403,{error:'Operasyon kayıtlarını yalnızca yönetici inceleyebilir.'});return true;}
@@ -311,12 +368,14 @@ const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,`http://${req.headers.host}`);
   if(url.pathname.startsWith('/bibilen/api/')){if(!authorizedRequest(req.headers,req.method)){sendJson(res,403,{error:'İstek kaynağına izin verilmiyor.'});return;}await handleApi(req,res,url);return;}
   if(!['GET','HEAD'].includes(req.method)){res.writeHead(403);res.end('Use authenticated office API');return;}
+  if(!accessPolicy.canWrite(req.headers)||url.pathname==='/observer.html'){serveObserverPage(req,res,url);return;}
   const proxy=http.request({hostname:'127.0.0.1',port:nativePort,path:req.url,method:req.method,headers:req.headers},up=>{res.writeHead(up.statusCode??502,up.headers);up.pipe(res);});
   proxy.on('error',()=>{if(!res.headersSent)res.writeHead(503);res.end('Ofis hazırlanıyor. Birkaç saniye sonra yenile.');});req.pipe(proxy);
 });
 server.on('upgrade',(req,socket,head)=>{
   let path;try{path=new URL(req.url,'http://localhost').pathname;}catch{socket.destroy();return;}
   if(!validHost(req.headers.host)||!validOrigin(req.headers)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
+  if(!accessPolicy.canWrite(req.headers)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   try{req.bibilenRuntime=getRuntime(workspaceScope(new URL(req.url,'http://localhost'),req.headers,defaultWorkspace.id));}catch{socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');return;}
   const {controller,taskManager}=req.bibilenRuntime;
   if(path==='/bibilen-session-terminal'){

@@ -1,7 +1,7 @@
 import {mkdirSync,readdirSync,lstatSync,readFileSync,writeFileSync,renameSync,existsSync,rmSync} from 'node:fs';
 import {join,dirname} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-const names=new Set(['standalone-state.json','native-state.json','bibilen-session-notices.json','session-notices.json','projects.json','bibilen-tasks.json','bibilen-sessions.json','bibilen-character-looks.json','bibilen-notifications.json','bibilen-daily-reports.json','bibilen-operations.json','layout.json','tasks.json','sessions.json','character-looks.json','daily-reports.json','operations.json']);
+const names=new Set(['agent-house-sharing.json','standalone-state.json','native-state.json','bibilen-session-notices.json','session-notices.json','projects.json','bibilen-tasks.json','bibilen-sessions.json','bibilen-character-looks.json','bibilen-notifications.json','bibilen-daily-reports.json','bibilen-operations.json','layout.json','tasks.json','sessions.json','character-looks.json','daily-reports.json','operations.json']);
 const safe=path=>{const parts=path.split('/');return parts.length===1&&names.has(path)||parts.length===3&&parts[0]==='workspaces'&&/^[a-f0-9]{12}$/.test(parts[1])&&names.has(parts[2]);};
 const hash=data=>createHash('sha256').update(data).digest('hex');
 export class StateBackup{

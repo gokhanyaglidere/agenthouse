@@ -413,3 +413,18 @@ Layout revision 116 moves the default finance printer beside the archive. Revisi
   conversation to read its history; deep message jumping is not implemented.
 
 See [verification and search limits](design/task-experience-2026-10-12.md).
+
+### Project observers — 2026-10-12
+
+**Menu → Proje paylaşımı** grants a named person's own Tailscale identity read-only
+access to the selected project for 7/30/90 days. Network access is separately
+configured in Tailscale; never add coworkers to the platform owner list.
+
+Explicitly publish selected task/conversation progress with an approved title and
+optional result summary. Nonowners opening the office URL receive a dedicated
+portal containing only assigned projects and published work. Private conversations,
+terminals, code, raw logs, global catalogs and notifications remain owner-only.
+Remove/expire a grant to deny new reads; existing downloaded information cannot be
+recalled. The owner can preview the portal without adding a real member.
+
+[Scope, tests and onboarding limits](design/observer-sharing-acceptance-2026-10-12.md).

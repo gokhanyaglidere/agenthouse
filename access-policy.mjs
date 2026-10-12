@@ -8,6 +8,13 @@ export class AccessPolicy{
    if(this.owners.size){mkdirSync(join(path,'..'),{recursive:true});writeFileSync(path,JSON.stringify({owners:[...this.owners]}),{mode:0o600});chmodSync(path,0o600);}
   }
  }
- role(headers){const host=String(headers.host??'').toLowerCase();if([`localhost:${Number(process.env.BIBILEN_GATEWAY_PORT??3100)}`,`127.0.0.1:${Number(process.env.BIBILEN_GATEWAY_PORT??3100)}`].includes(host))return 'operator';const login=headers['tailscale-user-login'];return typeof login==='string'&&this.owners.has(login)?'operator':'viewer';}
+ identity(headers){
+  const value=headers['tailscale-user-login'];
+  if(value!==undefined)return typeof value==='string'&&value.length>=3&&value.length<=200&&!/[\s\x00-\x1f\x7f]/.test(value)?value.toLowerCase():null;
+  // A proxied request must not become the trusted local owner by forging Host.
+  if(headers['x-forwarded-for']||headers['x-forwarded-host']||headers['x-forwarded-proto'])return null;
+  const host=String(headers.host??'').toLowerCase();return [`localhost:${Number(process.env.BIBILEN_GATEWAY_PORT??3100)}`,`127.0.0.1:${Number(process.env.BIBILEN_GATEWAY_PORT??3100)}`].includes(host)?'local-owner':null;
+ }
+ role(headers){const identity=this.identity(headers);return identity==='local-owner'&&headers['tailscale-user-login']===undefined||identity&&[...this.owners].some(owner=>typeof owner==='string'&&owner.toLowerCase()===identity)?'operator':'viewer';}
  canWrite(headers){return this.role(headers)==='operator';}
 }
