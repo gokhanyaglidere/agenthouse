@@ -365,7 +365,7 @@ records are privately persisted in `~/.pixel-agents/bibilen-operations.json`.
 The UI links each result to its real work inspector and displays task status.
 Live Slack alarms remain pending channel authorization; no sample alarms are
 injected into production storage for demonstration. Deferred connections are
-tracked as T-70 through T-74 in `docs/todo/TODO.md`.
+tracked in [the standalone follow-up register](design/follow-ups.md).
 
 ### Unified Operation Center — 2026-10-11
 

@@ -1,3 +1,4 @@
+import {createPreviewClock} from './previewClock.js';
 import {loadPreviewCat} from './previewPet.js';
 import {createPet,updatePet} from '../office/engine/petEntity.js';
 import {renderPetBubbles} from '../office/engine/renderer.js';
@@ -15,7 +16,28 @@ for(const [title,uid] of [['Arcade · ekrana dönük tuş kullanımı','game-arc
  else{for(let i=0;i<2;i++){const c=createCharacter(i+1,i+2,null,null);c.x=35+i*32;c.y=42;c.isActive=false;c.state=CharacterState.IDLE;c.dir=i?Direction.LEFT:Direction.RIGHT;c.ambientPause=10000;c.ambientPartnerId=2-i;people.push(c);}}
  scenes.push({canvas,people,pets,furniture:f?[f,...furniture.filter(other=>people[0]?.ambientTarget?.seatUid===other.uid)]:[],x,y});
 }
-let elapsed=0,last=performance.now(),paused=false,speed=1;
+let elapsed=0,paused=matchMedia('(prefers-reduced-motion: reduce)').matches,speed=1;
+const clock=createPreviewClock();
+let frameId:number|null=null;
 const pause=document.querySelector<HTMLButtonElement>('#preview-pause')!,slow=document.querySelector<HTMLButtonElement>('#preview-speed')!;
-pause.onclick=()=>{paused=!paused;pause.textContent=paused?'Devam et':'Duraklat';};slow.onclick=()=>{speed=speed===1?.5:1;slow.textContent=speed===1?'Yavaş oynat · 0,5×':'Normal hız · 1×';};
-function draw(now:number){if(!paused)elapsed+=Math.max(0,(now-last)/1000)*speed;last=now;for(const scene of scenes){const c=scene.canvas.getContext('2d')!;c.imageSmoothingEnabled=false;c.fillStyle='#c3ae86';c.fillRect(0,0,400,300);for(const p of scene.people){const duration=p.ambientTarget?.activity==='pet'?6:8;p.ambientElapsed=elapsed%duration;p.ambientPause=duration-p.ambientElapsed;p.frame=Math.floor(p.ambientElapsed/.7)%2;if(p.ambientTarget?.activity==='coffee')p.dir=p.ambientElapsed<2?Direction.UP:Direction.DOWN;}for(const pet of scene.pets){pet.playTimer=6-elapsed%6;if(!paused)updatePet(pet,.016*speed,[],new Map(),[],new Set());}renderScene(c,scene.furniture,scene.people,scene.x,scene.y,3,null,null,scene.pets);renderPetBubbles(c,scene.pets,scene.x,scene.y,3);}requestAnimationFrame(draw);}requestAnimationFrame(draw);
+function updatePauseButton(){pause.textContent=paused?'Devam et':'Duraklat';pause.setAttribute('aria-pressed',String(paused));}
+function schedule(){if(frameId===null&&!paused&&!document.hidden)frameId=requestAnimationFrame(draw);}
+function suspend(){if(frameId!==null)cancelAnimationFrame(frameId);frameId=null;clock.reset();}
+pause.onclick=()=>{paused=!paused;updatePauseButton();suspend();schedule();};
+slow.onclick=()=>{speed=speed===1?.5:1;slow.textContent=speed===1?'Yavaş oynat · 0,5×':'Normal hız · 1×';slow.setAttribute('aria-pressed',String(speed!==1));clock.reset();};
+document.addEventListener('visibilitychange',()=>{suspend();schedule();});
+window.addEventListener('pagehide',suspend);
+window.addEventListener('pageshow',()=>{clock.reset();schedule();});
+function draw(now:number){
+ frameId=null;
+ if(document.hidden)return;
+ const delta=paused?0:clock.tick(now,speed);elapsed+=delta;
+ for(const scene of scenes){
+  const c=scene.canvas.getContext('2d')!;c.imageSmoothingEnabled=false;c.fillStyle='#c3ae86';c.fillRect(0,0,400,300);
+  for(const p of scene.people){const duration=p.ambientTarget?.activity==='pet'?6:8;p.ambientElapsed=elapsed%duration;p.ambientPause=duration-p.ambientElapsed;p.frame=Math.floor(p.ambientElapsed/.7)%2;if(p.ambientTarget?.activity==='coffee')p.dir=p.ambientElapsed<2?Direction.UP:Direction.DOWN;}
+  for(const pet of scene.pets){pet.playTimer=6-elapsed%6;if(delta>0)updatePet(pet,delta,[],new Map(),[],new Set());}
+  renderScene(c,scene.furniture,scene.people,scene.x,scene.y,3,null,null,scene.pets);renderPetBubbles(c,scene.pets,scene.x,scene.y,3);
+ }
+ schedule();
+}
+updatePauseButton();slow.setAttribute('aria-pressed','false');draw(performance.now());

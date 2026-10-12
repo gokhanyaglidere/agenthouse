@@ -7,7 +7,8 @@ test('PTY survives gateway disconnect and reconnects to same pid with replay; ex
  // Node consumes later arguments as script arguments, mirroring Claude's session flag.
  const terminal=broker.create(['-e',"process.stdin.on('data',d=>process.stdout.write('ECHO:'+d));console.log('READY');setInterval(()=>{},1000)",'--','--session-id',id]);
  t.after(()=>terminal.kill());const ready=await new Promise((r,j)=>{terminal.once('ready',r);terminal.once('exit',j);});let data='';terminal.onData(x=>data+=x);await delay(150);assert.match(data,/READY/);terminal.write('before\n');await delay(100);terminal.disconnect();
- const recovered=await broker.recover();assert.equal(recovered.length,1);const resumed=recovered[0].terminal;t.after(()=>resumed.kill());assert.equal(resumed.pid,ready.pid);let replay='';resumed.onData(x=>replay+=x);await delay(100);assert.match(replay,/before/);resumed.write('after\n');await delay(100);assert.match(replay,/after/);
+ // Closing the local socket does not synchronously release the remote owner.
+ let recovered=[];for(let attempt=0;attempt<50&&!recovered.length;attempt++){await delay(20);recovered=await broker.recover();}assert.equal(recovered.length,1);const resumed=recovered[0].terminal;t.after(()=>resumed.kill());assert.equal(resumed.pid,ready.pid);let replay='';resumed.onData(x=>replay+=x);await delay(100);assert.match(replay,/before/);resumed.write('after\n');await delay(100);assert.match(replay,/after/);
  const exit=new Promise(r=>resumed.once('exit',r));resumed.kill();await exit;await delay(100);assert.equal((await broker.recover()).length,0);
 });
 
