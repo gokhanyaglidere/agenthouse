@@ -98,6 +98,7 @@ export function updateCharacter(
   seats: Map<string, Seat>,
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
+  peers: Iterable<Character> = [],
 ): void {
   if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;}
   if (ch.seatId === 'seat-chief' || ch.privateOffice) {
@@ -198,9 +199,15 @@ export function updateCharacter(
           }
         }
         if (walkableTiles.length > 0) {
-          const social=SOCIAL_VISITS;
-          const visit=ch.seatId!=='seat-chief'&&!ch.privateOffice&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&Math.random()<.65?social[Math.floor(Math.random()*social.length)]:undefined;
-          const target = visit??walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+          // Claim the destination while walking, not only after arrival.
+          const occupied:Array<{col:number;row:number}>=[];
+          for(const other of peers){if(other.id===ch.id||other.sessionHidden)continue;occupied.push({col:other.tileCol,row:other.tileRow});const end=other.ambientTarget??other.path.at(-1);if(end)occupied.push(end);}
+          const free=(t:{col:number;row:number})=>!blockedTiles.has(`${t.col},${t.row}`)&&!occupied.some(o=>Math.abs(o.col-t.col)+Math.abs(o.row-t.row)<2);
+          const social=SOCIAL_VISITS.filter(free);
+          const available=walkableTiles.filter(free);
+          if(!available.length){ch.wanderTimer=2;break;}
+          const visit=ch.seatId!=='seat-chief'&&!ch.privateOffice&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&social.length>0&&Math.random()<.65?social[Math.floor(Math.random()*social.length)]:undefined;
+          const target = visit??available[Math.floor(Math.random() * available.length)];
           const path = findPath(
             ch.tileCol,
             ch.tileRow,

@@ -1111,6 +1111,14 @@ export class OfficeState {
       this.greeter = null;
     }
 
+    // Repair old shared destinations after upgrades; the remaining visitors reroute.
+    const claimed=new Set<string>();
+    for(const ch of this.characters.values()){
+      if(!ch.ambientTarget||ch.sessionHidden)continue;
+      const key=`${ch.ambientTarget.col},${ch.ambientTarget.row}`;
+      if(claimed.has(key)){ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.path=[];ch.moveProgress=0;ch.x=ch.tileCol*TILE_SIZE+TILE_SIZE/2;ch.y=ch.tileRow*TILE_SIZE+TILE_SIZE/2;ch.state=CharacterState.IDLE;ch.wanderTimer=0;}
+      else claimed.add(key);
+    }
     const toDelete: number[] = [];
     for (const ch of this.characters.values()) {
       const effect = advanceMatrixEffect(ch, dt);
@@ -1121,7 +1129,7 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles),
+        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, this.characters.values()),
       );
 
       // Tick bubble timer for waiting bubbles
