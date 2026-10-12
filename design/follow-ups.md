@@ -44,3 +44,12 @@ paid Claude operations were not used for this maintenance pass.
 
 Busy external CLI conversations remain controlled by their original terminal.
 This is a disclosed ownership boundary, not a missing permission to inject input.
+
+## Team collaboration — proposed 2026-10-12
+
+The owner requested a complete project-sharing model. The current global
+operator/viewer system is not project-isolated multiuser access. See
+[team collaboration architecture](team-collaboration-2026-10-12.md) for verified
+current gaps, role/capability matrix, identity and invitation flow, scoped session
+visibility, notifications, attribution, execution identities and rollout tests.
+The design is recorded; memberships, invitations and public access are not enabled.
