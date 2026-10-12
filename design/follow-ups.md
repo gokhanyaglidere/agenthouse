@@ -80,3 +80,8 @@ Local capability synchronization, stable role-based resident identities, removed
 live-role handling, skill-selector synchronization and onboarding discovery
 summary are implemented. Local verification: 170 backend + 79 UI tests. Windows
 host connection remains deferred; no Windows device or network setup was changed.
+
+Local gap recheck completed: additional discovery, duplicate-identity, draft-race,
+payload-validation and partial-workstation defects were corrected. See
+[recheck results and explicit boundaries](local-gap-recheck-2026-10-12.md).
+Final local verification: 176 backend + 85 UI tests; build passed; audit zero.

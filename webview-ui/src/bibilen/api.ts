@@ -111,5 +111,5 @@ export const revokeObserver=(id:string)=>request<SharingState>(`sharing/grants/$
 export const publishObserverItem=(input:{kind:string;sourceId:string;title:string;summary:string})=>request<SharingState>('sharing/items',{method:'POST',body:JSON.stringify(input)});
 export const removeObserverItem=(id:string)=>request<SharingState>(`sharing/items/${encodeURIComponent(id)}/remove`,{method:'POST',body:'{}'});
 
-export interface CapabilityInventory{workspaceId?:string;projectId?:string;hostId?:string;revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean}>}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
+export interface CapabilityInventory{workspaceId?:string;projectId?:string;hostId?:string;revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean;reason?:string|null}>}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
 export const getCapabilities=()=>request<CapabilityInventory>('capabilities');
