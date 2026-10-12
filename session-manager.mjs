@@ -1,3 +1,4 @@
+import {sessionOptions,sessionOptionArgs} from './session-options.mjs';
 import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,chmodSync,readdirSync,statSync,openSync,readSync,closeSync} from 'node:fs';
@@ -84,7 +85,7 @@ export class SessionManager{
   const title=String(input?.title??'').trim();const role=String(input?.role??'chief');
   if(title.length<3||title.length>100)throw new Error('Konuşma adı 3–100 karakter olmalı.');
   if(!this.roles.has(role))throw new Error('Bilinmeyen uzman rolü.');
-  const id=randomUUID();this.saved[id]={title,role,...(this.context?{projectId:this.context.projectId,workspaceId:this.context.workspaceId,hostId:this.context.hostId}:{}),createdAt:Date.now(),updatedAt:Date.now()};this.save();return {id,...this.saved[id]};
+  const id=randomUUID();this.saved[id]={title,role,options:sessionOptions(input.options),...(this.context?{projectId:this.context.projectId,workspaceId:this.context.workspaceId,hostId:this.context.hostId}:{}),createdAt:Date.now(),updatedAt:Date.now()};this.save();return {id,...this.saved[id]};
  }
  async known(id){this.path(id);const found=(await this.list()).sessions.find(s=>s.id===id);if(!found)throw new Error('Bu projede oturum bulunamadı.');return found;}
  async transcript(id,before){
@@ -130,7 +131,7 @@ export class SessionManager{
     const agent=inventory.agents.find(a=>a.sessionId===id);
     if(agent?.kind==='background'&&!this.canAttach(id))throw new Error('Bu görev terminali başka bir panelde açık. Önce onu kapat.');
     if(agent?.kind!=='background'&&agent&&(ACTIVE.has(agent.state)||ACTIVE.has(agent.status)))throw new Error('Oturum başka bir terminalde açık. Önce orada kapat.');
-    const args=agent?.kind==='background'?['attach',agent.id??id]:session.hasTranscript?['--resume',id,'--permission-mode','default']:['--session-id',id,'--name',session.title,'--permission-mode','default'];
+    const args=agent?.kind==='background'?['attach',agent.id??id]:session.hasTranscript?['--resume',id,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])]:['--session-id',id,'--name',session.title,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])];
     if(!agent&&!session.hasTranscript){if(session.role&&session.role!=='chief')args.push('--agent',session.role);else args.push('--append-system-prompt',`${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Gerektiğinde .claude/agents içindeki uzmanları kullan.`);}
     if(ws.readyState!==1)return;
     if(this.live.size>=5)throw new Error('Aynı anda en fazla 5 konuşma açık olabilir.');

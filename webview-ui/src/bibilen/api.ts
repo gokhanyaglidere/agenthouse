@@ -36,7 +36,7 @@ export async function enablePush(){
   await request('push-subscriptions',{method:'POST',body:JSON.stringify(subscription)});
 }
 export const getSessions=()=>request<{sessions:import('./types.js').ClaudeSession[];inventoryAvailable:boolean}>('sessions');
-export const newSession=(title:string,role:string)=>request<{session:{id:string}}> ('sessions',{method:'POST',body:JSON.stringify({title,role})});
+export const newSession=(title:string,role:string,options?:{model:string|null;effort:string|null;mode:string})=>request<{session:{id:string}}> ('sessions',{method:'POST',body:JSON.stringify({title,role,options})});
 export const getTranscript=(id:string,before?:number)=>request<{messages:import('./types.js').ConversationMessage[];nextBefore:number|null}>(`sessions/${encodeURIComponent(id)}/transcript${before===undefined?'':`?before=${before}`}`);
 export const stopSession=(id:string)=>request<{ok:boolean}>(`sessions/${encodeURIComponent(id)}/stop`,{method:'POST'});
 export const getWorkOverview=()=>request<import('./types.js').WorkOverview>('work/overview');
@@ -96,3 +96,7 @@ export const updateProjectPolicy=(allowNewWork:boolean,extra:Partial<ProjectTool
 export interface ToolApproval{id:string;sessionId:string;tool:string;input:Record<string,unknown>;files:string[];reason:string;createdAt:number;expiresAt:number;status:string}
 export const getApprovals=()=>request<{pending:ToolApproval[];history:ToolApproval[];checkedAt:number|null;checkedSessions:string[]}>('approvals');
 export const decideApproval=(id:string,decision:'allow'|'deny')=>request<{ok:boolean}>(`approvals/${id}`,{method:'POST',body:JSON.stringify({decision})});
+
+export interface SkillChoice{id:string;name:string;source:string}
+export const getSkillCatalog=()=>request<{skills:SkillChoice[]}>('skills');
+export const getSkillInstruction=(id:string)=>request<SkillChoice&{body:string}>(`skills/${encodeURIComponent(id)}`);

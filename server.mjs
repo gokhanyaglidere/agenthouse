@@ -1,3 +1,4 @@
+import {SkillCatalog} from './skill-catalog.mjs';
 import {ToolGuard} from './tool-guard.mjs';
 import {ProjectPolicy} from './project-policy.mjs';
 import {StateBackup} from './state-backup.mjs';
@@ -83,7 +84,7 @@ function getRuntime(workspaceId){
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,
+ const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),
@@ -232,6 +233,7 @@ async function handleApi(req,res,url){
       sendJson(res,operator?200:403,{ok:operator});return true;
     }
     if(!operator&&req.method!=='GET'){sendJson(res,403,{error:'İzleyici erişiminde komut ve ayar değişikliği yapılamaz.'});return true;}
+    if(url.pathname==='/bibilen/api/skills'||url.pathname.startsWith('/bibilen/api/skills/')){if(!operator){sendJson(res,403,{error:'Skill talimatlarını yalnızca yönetici görebilir.'});return true;}if(req.method!=='GET'){sendJson(res,405,{error:'Yalnızca okuma desteklenir.'});return true;}sendJson(res,200,url.pathname==='/bibilen/api/skills'?runtime.skills.list():runtime.skills.read(url.pathname.split('/').at(-1)));return true;}
     if(url.pathname==='/bibilen/api/approvals'){if(!operator){sendJson(res,403,{error:'Onayları yalnızca yönetici görebilir.'});return true;}sendJson(res,200,runtime.guard.state());return true;}
     const approvalMatch=url.pathname.match(/^\/bibilen\/api\/approvals\/([^/]+)$/);if(req.method==='POST'&&approvalMatch){if(!operator){sendJson(res,403,{error:'Yalnızca yönetici karar verebilir.'});return true;}sendJson(res,200,runtime.guard.decide(approvalMatch[1],(await readJson(req)).decision));return true;}
     if(url.pathname==='/bibilen/api/project-policy'){if(!operator){sendJson(res,403,{error:'Proje izinlerini yalnızca yönetici görebilir.'});return true;}if(req.method==='POST'){const value=runtime.policy.update(await readJson(req));runtime.guard.invalidate();sendJson(res,200,value);}else sendJson(res,200,runtime.policy.state());return true;}

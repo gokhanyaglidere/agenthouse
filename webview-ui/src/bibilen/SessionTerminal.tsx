@@ -1,3 +1,4 @@
+import {SessionControls} from './SessionControls.js';
 import {useDialogFocus} from './use-dialog-focus.js';
 import {terminalChannel} from './terminal-channel.js';
 import {useDraft} from './drafts.js';
@@ -41,6 +42,7 @@ export function SessionTerminal({session,close,onSessionChange}:{session:ClaudeS
  },[session.id,onSessionChange,connectionVersion]);
  return <section ref={dialog} className="bb-console" role="dialog" aria-modal="true" aria-label="Claude oturumu"><header><div><small>Claude Code</small><strong>{session.title}</strong></div><button aria-label="Oturum panelini kapat" onClick={close}><Icon name="close"/></button></header>
   <nav className="bb-terminal-tabs" aria-label="Konuşma görünümü"><button aria-pressed={!history} onClick={()=>setHistory(false)}>Canlı terminal</button><button aria-pressed={history} onClick={()=>{setHistory(true);void read();}}>Konuşma geçmişi</button></nav>
+  <SessionControls key={session.id} canWrite={canWrite} send={text=>send.current(text)} stage={text=>{if(draft.trim()||text.length>20000)return false;setDraft(text);return true;}}/>
   <div className="bb-terminal" hidden={history} ref={mount}/>
   {history&&<div className="bb-terminal-history" role="region" aria-label="Kaydırılabilir konuşma geçmişi" tabIndex={0}>{before!==null&&<button disabled={loading} onClick={()=>void read(before)}>Önceki mesajları yükle</button>}{messages.map((m,i)=><article className={`bb-message bb-message-${m.role}`} key={`${m.id}-${i}`}><header><strong>{m.role==='user'?'Sen':'Claude'}</strong>{m.timestamp&&<time>{new Date(m.timestamp).toLocaleString('tr-TR')}</time>}</header><MessageContent text={m.text}/>{m.tools.length>0&&<p>Araçlar: {m.tools.join(', ')}</p>}</article>)}{loading&&<p role="status">Yükleniyor…</p>}{readError&&<p role="alert">{readError}</p>}</div>}
   <footer><span role="status">{status}</span>{!canWrite&&<button type="button" onClick={()=>reconnect(v=>v+1)}>Yeniden bağlan</button>}

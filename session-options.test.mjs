@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {sessionOptions,sessionOptionArgs} from './session-options.mjs';
+test('startup options produce real CLI flags and safe defaults',()=>{assert.deepEqual(sessionOptionArgs(),['--permission-mode','manual']);assert.deepEqual(sessionOptionArgs({model:'opus',effort:'high',mode:'plan'}),['--permission-mode','plan','--model','opus','--effort','high']);});
+test('invalid or bypass options cannot become CLI arguments',()=>{for(const input of [null,[],{mode:'bypassPermissions'},{model:'--danger'},{model:'opus\n/clear'},{effort:'infinite'}])assert.throws(()=>sessionOptions(input));});
