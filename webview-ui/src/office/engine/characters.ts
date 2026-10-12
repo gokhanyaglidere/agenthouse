@@ -1,3 +1,4 @@
+import {activitySprite} from './ambientActivities.js';
 import {
   DEFAULT_MAX_CONTEXT_TOKENS,
   SEAT_REST_MAX_SEC,
@@ -98,7 +99,7 @@ export function updateCharacter(
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
 ): void {
-  if(ch.isActive){ch.ambientTarget=undefined;ch.ambientPause=0;}
+  if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;}
   if (ch.seatId === 'seat-chief' || ch.privateOffice) {
     const inside = insideCeo;
     walkableTiles = walkableTiles.filter(t => inside(t.col,t.row));
@@ -131,7 +132,7 @@ export function updateCharacter(
     }
 
     case CharacterState.IDLE: {
-      if((ch.ambientPause??0)>0){ch.ambientPause=Math.max(0,(ch.ambientPause??0)-dt);break;}
+      if((ch.ambientPause??0)>0){ch.ambientPause=Math.max(0,(ch.ambientPause??0)-dt);ch.ambientElapsed=(ch.ambientElapsed??0)+dt;ch.frame=Math.floor(ch.ambientElapsed/.7)%2;break;}
       if(ch.ambientTarget&&ch.path.length===0)ch.ambientTarget=undefined;
       // No idle animation — static pose
       ch.frame = 0;
@@ -198,7 +199,7 @@ export function updateCharacter(
         }
         if (walkableTiles.length > 0) {
           const social=SOCIAL_VISITS;
-          const visit=ch.seatId!=='seat-chief'&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&Math.random()<.65?social[Math.floor(Math.random()*social.length)]:undefined;
+          const visit=ch.seatId!=='seat-chief'&&!ch.privateOffice&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&Math.random()<.65?social[Math.floor(Math.random()*social.length)]:undefined;
           const target = visit??walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
           const path = findPath(
             ch.tileCol,
@@ -251,7 +252,7 @@ export function updateCharacter(
           }
         } else {
           if(ch.ambientTarget&&ch.tileCol===ch.ambientTarget.col&&ch.tileRow===ch.ambientTarget.row){
-            ch.state=CharacterState.IDLE;ch.ambientPause=randomRange(15,35);ch.frame=0;ch.frameTimer=0;break;
+            ch.state=CharacterState.IDLE;ch.ambientPause=randomRange(15,35);ch.ambientElapsed=0;ch.dir=Direction.DOWN;ch.frame=0;ch.frameTimer=0;break;
           }
           // Check if arrived at assigned seat — sit down for a rest before wandering again
           if (ch.seatId) {
@@ -343,6 +344,7 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
     case CharacterState.WALK:
       return sprites.walk[ch.dir][ch.frame % 4];
     case CharacterState.IDLE:
+      if(!ch.isActive&&(ch.ambientPause??0)>0&&ch.ambientTarget?.activity)return activitySprite(sprites.walk[ch.dir][1],ch.ambientTarget.activity,ch.ambientElapsed??0);
       return sprites.walk[ch.dir][1];
     default:
       return sprites.walk[ch.dir][1];

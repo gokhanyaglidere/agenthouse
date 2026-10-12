@@ -95,7 +95,7 @@ export const CORRIDORS:Bounds[]=[
  {left:3,right:36,top:47,bottom:47},{left:39,right:54,top:43,bottom:43},{left:57,right:73,top:26,bottom:26},{left:57,right:73,top:47,bottom:47},
 ];
 export const isRoomDoor=(room:CozyRoom,col:number,row:number)=>!room.locked&&[{side:room.doorSide,at:room.door},...(room.extraDoors??[])].some(d=>(d.side==='north'||d.side==='south')?row===(d.side==='north'?room.top:room.bottom)&&Math.abs(col-d.at)<=1:col===(d.side==='west'?room.left:room.right)&&Math.abs(row-d.at)<=1);
-export const SOCIAL_VISITS=[{col:10,row:39,label:'Kahve molası'},{col:64,row:23,label:'Dinleniyor'},{col:53,row:69,label:'Bahçede'},{col:66,row:52,label:'Oyun odasında'},{col:68,row:43,label:'Yemek molası'},{col:19,row:66,label:'Korulukta'}];
+export const SOCIAL_VISITS=[{col:10,row:39,label:'Kahve içiyor',activity:'coffee' as const},{col:64,row:23,label:'Kitap okuyor',activity:'read' as const},{col:53,row:69,label:'Bahçeyi izliyor',activity:'garden' as const},{col:66,row:52,label:'Oyun oynuyor',activity:'game' as const},{col:68,row:43,label:'Atıştırıyor',activity:'eat' as const},{col:19,row:66,label:'Doğayı izliyor',activity:'garden' as const}];
 // Two straight walks share one straight promenade; the patio is not a route.
 export const GARDEN_PAVING=[{col:45,row:58,w:3,h:11},{col:65,row:58,w:3,h:11},{col:32,row:66,w:36,h:3}];
 export const GARDEN_TERRACE={col:51,row:64,w:10,h:10};

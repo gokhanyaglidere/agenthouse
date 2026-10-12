@@ -199,7 +199,8 @@ export interface Character {
   /** Timer for idle wander decisions */
   wanderTimer: number;
   /** Visual-only social visit; never marks a Claude session as working. */
-  ambientTarget?: {col:number;row:number;label:string};
+  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'};
+  ambientElapsed?: number;
   ambientPause?: number;
   /** Number of wander moves completed in current roaming cycle */
   wanderCount: number;
