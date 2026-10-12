@@ -1,0 +1,34 @@
+{
+  "activeTaskRetention": {
+    "memoryCount": 251,
+    "diskCount": 250,
+    "activeJobPersisted": false
+  },
+  "projectTranscriptIsolation": {
+    "normalizedFoldersCollide": true,
+    "foreignSessionListed": true,
+    "foreignMessageReturned": true
+  },
+  "abandonedProjectLock": {
+    "registrationBlocked": true
+  },
+  "bootstrapWriteRules": {
+    "server.mjs": "deny",
+    "access-policy.mjs": "normal",
+    "observer-sharing.mjs": "normal",
+    "terminal-worker.mjs": "normal"
+  },
+  "unboundedCliPoll": {
+    "samePromise": true,
+    "resolvedWithin50ms": false
+  },
+  "observerTaskIdentity": {
+    "shortId": "12345678",
+    "exactLookupFindsLead": false
+  },
+  "concurrentTaskWorkspace": {
+    "launches": 2,
+    "sameWorkingDirectory": true,
+    "isolatedPerTaskDirectory": false
+  }
+}

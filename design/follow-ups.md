@@ -57,3 +57,16 @@ progress/result publication, revocation, expiry and an isolated observer portal
 are implemented; see [acceptance](observer-sharing-acceptance-2026-10-12.md).
 Actual coworker identities/network permissions are still needed for onboarding.
 Other collaboration roles, personal observer push and public access remain future scope.
+
+## Open findings from the full-system review — 2026-10-12
+
+[Review and evidence](gap-review-2026-10-12.md). No production fixes in this pass.
+
+- G-01 / P1: expand protection for authentication and terminal bootstrap sources.
+- G-02 / P1: validate transcript cwd when normalized project folders collide.
+- G-03 / P1: retain all unfinished jobs beyond the history cap.
+- G-04 / P1: recover abandoned project registry locks safely.
+- G-05 / P2: bound CLI monitoring commands by time and output.
+- G-06 / P2: normalize short task session IDs in observer work projection.
+- G-07 / P2: invalidate displayed usage on transport errors and expired reset times.
+- G-08 / P2: isolate or serialize concurrent writes to the same project.
