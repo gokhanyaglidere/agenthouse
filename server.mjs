@@ -273,7 +273,7 @@ async function handleApi(req,res,url){
       if(req.method==='POST'&&remove){sendJson(res,200,observerSharing.unpublish(executionContext.projectId,remove[1],actor));return true;}
       sendJson(res,404,{error:'Paylaşım işlemi bulunamadı.'});return true;
     }
-    if(req.method==='GET'&&url.pathname==='/bibilen/api/capabilities'){if(!operator){sendJson(res,403,{error:'Proje tanımlarını yalnızca yönetici görebilir.'});return true;}sendJson(res,200,runtime.refreshCapabilities());return true;}
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/capabilities'){if(!operator){sendJson(res,403,{error:'Proje tanımlarını yalnızca yönetici görebilir.'});return true;}sendJson(res,200,{...runtime.refreshCapabilities(),workspaceId:executionContext.workspaceId,projectId:executionContext.projectId,hostId:executionContext.hostId});return true;}
     if(req.method==='GET'&&url.pathname==='/bibilen/api/roles'){const inventory=runtime.refreshCapabilities();sendJson(res,200,{roles:[...runtime.roles],agents:inventory.agents,capabilities:operator?inventory:undefined,projectName:executionContext.projectName,legacy:executionContext.legacy});return true;}
 
     if(url.pathname.startsWith('/bibilen/api/operations')){if(!operator){sendJson(res,403,{error:'Operasyon kayıtlarını yalnızca yönetici inceleyebilir.'});return true;}

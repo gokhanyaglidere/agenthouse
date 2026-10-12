@@ -1,5 +1,5 @@
 import type { OfficeState } from '../office/engine/officeState.js';
-import { ROSTER, residentId, isResident } from './roster.js';
+import { ROSTER, residentId, residentSlot, isResident } from './roster.js';
 import { insideCeo, COZY_REVISION } from './layouts.js';
 import { COZY_CHARACTER_COUNT } from '../office/sprites/cozyCharacters.js';
 import { TILE_SIZE, CharacterState } from '../office/types.js';
@@ -10,6 +10,8 @@ export function roleFromLabel(label: string): string | undefined {
 }
 export function syncResidents(office: OfficeState, subagents: Array<{id:number;label:string}> = [], tasks: Array<{sessionId?:string|null;role:string}> = [], work?:WorkOverview): Map<string,number> {
   const bound = new Map<string,number>();
+  const currentIds=new Set(ROSTER.map((_,i)=>residentId(i)));
+  for(const ch of office.characters.values())if(isResident(ch.id)&&!currentIds.has(ch.id)){if(ch.seatId){const seat=office.seats.get(ch.seatId);if(seat)seat.assigned=false;}office.characters.delete(ch.id);if(office.selectedAgentId===ch.id)office.selectedAgentId=null;if(office.cameraFollowId===ch.id)office.cameraFollowId=null;}
   const live=work?.inventoryAvailable?new Map(work.groups.filter(g=>g.live).map(g=>[g.sessionId,g])):null;
   for(const ch of office.characters.values()){
     if(isResident(ch.id))continue;
@@ -33,7 +35,7 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
       const ghost=office.characters.get(id);
       if(ghost){if(ghost.seatId){const seat=office.seats.get(ghost.seatId); if(seat)seat.assigned=false;}office.characters.delete(id);}
       const live=office.characters.get(bound.get(role.key)!);
-      if(live){live.agentName=role.name;live.wardrobeRole=role.key;live.palette=i%COZY_CHARACTER_COUNT;live.hueShift=0;}
+      if(live){live.agentName=role.name;live.wardrobeRole=role.key;live.palette=residentSlot(i)%COZY_CHARACTER_COUNT;live.hueShift=0;}
       if(live && live.seatId!==`seat-${role.key}`){
         if(role.key==='chief'){for(const other of office.characters.values())if(other.id!==live.id&&other.seatId==='seat-chief'){other.seatId=null;other.path=[];other.state=CharacterState.IDLE;const seat=office.seats.get('seat-chief');if(seat)seat.assigned=false;}}
         office.reassignSeat(live.id,`seat-${role.key}`);
@@ -51,12 +53,12 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
   ROSTER.forEach((role,i)=>{
     const id=residentId(i);
     if(!bound.has(role.key) && !office.characters.has(id)){
-      office.addAgent(id,i%COZY_CHARACTER_COUNT,0,`seat-${role.key}`,true,'BiBilen');
+      office.addAgent(id,residentSlot(i)%COZY_CHARACTER_COUNT,0,`seat-${role.key}`,true,'BiBilen');
       office.setAgentActive(id,false);
       const ch=office.characters.get(id)!;ch.agentName=role.name;ch.wardrobeRole=role.key;ch.wanderTimer=1+(i%9)*0.7;
     }
     const resident=office.characters.get(id);
-    if(resident){resident.agentName=role.name;resident.wardrobeRole=role.key;resident.palette=i%COZY_CHARACTER_COUNT;resident.hueShift=0;}
+    if(resident){resident.agentName=role.name;resident.wardrobeRole=role.key;resident.palette=residentSlot(i)%COZY_CHARACTER_COUNT;resident.hueShift=0;}
   });
   // Several genuine CLI conversations may share the chief role. Distinguish
   // their sessions instead of presenting different states as one person.

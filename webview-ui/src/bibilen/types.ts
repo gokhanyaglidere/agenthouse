@@ -9,6 +9,7 @@ export interface BibilenTask {
 export interface TaskEvent {id:string;taskId:string|null;type:string;message:string;at:number}
 export interface CommandState {
   operator:boolean;settings:{maxConcurrent:number;writeConcurrency?:number};tasks:BibilenTask[];events:TaskEvent[];serverTime:number;
+  context?:{workspaceId:string;projectId:string;hostId:string;projectName:string};
   execution?:ExecutionStatus;
 }
 export interface ExecutionStatus {status:'unchecked'|'ready'|'blocked'|'unavailable';message:string;checkedAt:number|null}

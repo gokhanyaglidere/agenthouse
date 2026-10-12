@@ -353,10 +353,13 @@ const BASE_ROSTER = [
     "skills": []
   }
 ] as const;
-export const residentId = (index: number) => -10000-index;
+const roleSlots=new Map<string,number>(BASE_ROSTER.map((r,i)=>[r.key,i]));
+const usedSlots=new Set(roleSlots.values());
+export function residentSlot(index:number){const key=ROSTER[index]?.key;if(!key)return index;const existing=roleSlots.get(key);if(existing!==undefined)return existing;let hash=2166136261;for(const char of key)hash=Math.imul(hash^char.charCodeAt(0),16777619)>>>0;let slot=1000+hash%100000000;while(usedSlots.has(slot))slot++;roleSlots.set(key,slot);usedSlots.add(slot);return slot;}
+export const residentId = (index: number) => -10000-residentSlot(index);
 export const isResident = (id: number) => id <= -10000;
 
-export interface ResidentRole {key:string;name:string;group:string;description:string;skills:readonly string[];}
+export interface ResidentRole {key:string;name:string;group:string;description:string;skills:readonly string[];available?:boolean;}
 export const ROSTER:ResidentRole[]=[...BASE_ROSTER];
 export interface ProjectAgent {key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean}>;}
 export function configureRoster(keys:string[],legacy:boolean,agents?:ProjectAgent[]){
@@ -369,4 +372,12 @@ export function configureRoster(keys:string[],legacy:boolean,agents?:ProjectAgen
   const portableNames:Record<string,string>={'project-engineer':'Yazılım geliştiricisi','project-reviewer':'Kod incelemecisi','operations-reporter':'Operasyon sorumlusu'};
   return {key,name:portableNames[key]??key.replace(/[-_]/g,' '),group:'Proje uzmanları',description:'Bu projenin .claude/agents klasöründeki ajan.',skills:[]};
  });ROSTER.splice(0,ROSTER.length,...roles);
+}
+
+// A removed definition may still have genuine running sessions; keep it visible,
+// without offering it for new work. Preserve remaining order for desk stability.
+export function reconcileRoster(agents:ProjectAgent[],activeRoles:string[]=[]){
+ const previous=[...ROSTER];configureRoster(['chief',...agents.map(a=>a.key).filter(k=>k!=='chief')],false,agents);
+ for(const key of new Set(activeRoles))if(!ROSTER.some(r=>r.key===key)){const old=previous.find(r=>r.key===key);ROSTER.push({...old,key,name:old?.name??key,group:old?.group??'Devam eden oturumlar',skills:old?.skills??[],description:'Tanım kaldırıldı; mevcut oturum devam ediyor.',available:false});}
+ const order=new Map(previous.map((r,i)=>[r.key,i]));ROSTER.sort((a,b)=>(order.get(a.key)??10000)-(order.get(b.key)??10000));
 }

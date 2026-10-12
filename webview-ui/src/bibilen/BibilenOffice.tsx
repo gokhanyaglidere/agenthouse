@@ -1,3 +1,5 @@
+import {CapabilityRefresh} from './capability-refresh.js';
+import {reconcileTeamLayout} from './team-layout.js';
 import {SharingPanel} from './SharingPanel.js';
 import {HistorySearch} from './HistorySearch.js';
 import {ProjectSummary} from './ProjectSummary.js';
@@ -12,10 +14,10 @@ import {lazy,Suspense,useCallback,useEffect,useLayoutEffect,useMemo,useRef,useSt
 import type {OfficeState} from '../office/engine/officeState.js';
 import type {OfficeLayout} from '../office/types.js';
 import {transport} from '../transport/index.js';
-import {getState,getWorkOverview,getAppearance,getNotifications} from './api.js';
+import {getState,getWorkOverview,getAppearance,getNotifications,getCapabilities,type CapabilityInventory} from './api.js';
 import {AppearancePanel,type Ambience} from './AppearancePanel.js';
 import {makeLayout,COZY_ROOMS,type Theme} from './layouts.js';
-import {ROSTER,residentId} from './roster.js';
+import {ROSTER,residentId,isResident,reconcileRoster} from './roster.js';
 import {syncResidents} from './residents.js';
 import {SessionDirectory} from './SessionDirectory.js';
 import {NotificationCenter} from './NotificationCenter.js';
@@ -115,6 +117,25 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef,onEd
  useEffect(()=>transport.onMessage(message=>{const m=message as unknown as {type:string;message?:string};if(m.type==='bibilenNotice'&&m.message)setNotice(m.message);}),[]);
  const [theme,setTheme]=useState<Theme>(()=>(localStorage.getItem(workspaceStorage('bb-theme')) as Theme)||'studio');
  const [ambience,setAmbience]=useState<Ambience>(()=>(localStorage.getItem(workspaceStorage('bb-ambience')) as Ambience)||'auto');
+ const [catalog,setCatalog]=useState<CapabilityInventory|null>(null);const [catalogError,setCatalogError]=useState('');const [catalogVersion,setCatalogVersion]=useState(0);
+ const catalogState=useRef({state,work,selected,theme});catalogState.current={state,work,selected,theme};
+ useEffect(()=>{
+  if(!state.operator)return;
+  let signature='';
+  const refresh=new CapabilityRefresh(getCapabilities,state.context?.workspaceId??workspaceId,value=>{
+   const current=catalogState.current;const activeRoles=[...current.state.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.role),...current.work.groups.filter(g=>g.live).flatMap(g=>g.members.filter(m=>!!m.liveState&&m.liveState!=='closed').map(m=>m.role).filter((key):key is string=>!!key)),...[...office.characters.values()].filter(ch=>!isResident(ch.id)&&!ch.sessionHidden&&ch.matrixEffect!=='despawn').map(ch=>office.agentRoleKeys.get(ch.id)).filter((key):key is string=>!!key)];
+   const nextSignature=value.revision+':'+[...new Set(activeRoles)].sort().join(',');setCatalogError('');
+   if(signature===nextSignature)return;signature=nextSignature;
+   const previousKeys=ROSTER.map(r=>r.key);const selectedKey=current.selected===null?null:ROSTER[current.selected]?.key;
+   reconcileRoster(value.agents,activeRoles);const nextKeys=ROSTER.map(r=>r.key);
+   const currentLayout=office.getLayout();const layoutKeys=currentLayout.furniture.filter(f=>f.uid.startsWith('desk-')&&currentLayout.furniture.some(s=>s.uid==='seat-'+f.uid.slice(5))).map(f=>f.uid.slice(5));
+   if(previousKeys.join(',')!==nextKeys.join(',')||nextKeys.some(k=>!layoutKeys.includes(k))||layoutKeys.some(k=>!nextKeys.includes(k))){const layout=reconcileTeamLayout(currentLayout,makeLayout(current.theme),[...new Set([...previousKeys,...layoutKeys])],nextKeys);office.rebuildFromLayout(layout);onLayout(layout);}
+   if(selectedKey){const index=ROSTER.findIndex(r=>r.key===selectedKey);setSelected(index<0?null:index);}
+   setCatalog(value);setCatalogVersion(n=>n+1);window.dispatchEvent(new CustomEvent('agent-house-capabilities',{detail:value}));
+  },()=>setCatalogError('Ekip tanımları güncellenemedi; son doğrulanan ekip gösteriliyor.'));
+  const check=()=>{if(document.visibilityState==='visible')void refresh.refresh();};check();const timer=setInterval(check,5000);window.addEventListener('focus',check);document.addEventListener('visibilitychange',check);
+  return()=>{refresh.close();clearInterval(timer);window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};
+ },[office,onLayout,state.operator,state.context?.workspaceId]);
  const [clock,setClock]=useState(Date.now());
  useEffect(()=>{
   const key=(event:KeyboardEvent)=>{if(event.key!=='Escape'||(event.target instanceof Element&&event.target.closest('.xterm')))return;if(workTarget){event.preventDefault();closeWork();return;}
@@ -134,11 +155,11 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef,onEd
  const statePending=useRef<Promise<void>|null>(null);
  const reload=useCallback(()=>{if(statePending.current)return statePending.current;statePending.current=getState().then(value=>{setState(value);setStateAvailable(true);setLastStateCheck(Date.now());}).catch(()=>setStateAvailable(false)).finally(()=>{statePending.current=null;});return statePending.current;},[]);
  useEffect(()=>{void reload();const refresh=()=>{if(document.visibilityState==='visible')void reload();};const timer=setInterval(refresh,3000);window.addEventListener('bibilen-auth',refresh);window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);return()=>{clearInterval(timer);window.removeEventListener('bibilen-auth',refresh);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};},[reload]);
- useEffect(()=>{const update=()=>setBindings(syncResidents(office,subagents,state.tasks,work));update();const timer=setInterval(update,1000);return()=>clearInterval(timer);},[office,subagents,state.tasks,work]);
+ useEffect(()=>{const update=()=>setBindings(syncResidents(office,subagents,state.tasks,work));update();const timer=setInterval(update,1000);return()=>clearInterval(timer);},[office,subagents,state.tasks,work,catalogVersion]);
  useEffect(()=>{for(let i=0;i<ROSTER.length;i++){const palette=characterLooks.looks[ROSTER[i].key];if(!Number.isInteger(palette))continue;const ch=office.characters.get(bindings.get(ROSTER[i].key)??residentId(i));if(ch){ch.palette=palette;ch.hueShift=0;}}},[office,bindings,characterLooks]);
  useEffect(()=>{const timer=setInterval(()=>setClock(Date.now()),60000);return()=>clearInterval(timer);},[]);
  const setView=(next:CommandView)=>{setViewState(next);const url=new URL(location.href);url.searchParams.set('view',next);if(next!=='sessions')url.searchParams.delete('session');history.replaceState({},'',url);};
- const requestTask=(role='chief')=>{if(!state.operator){setNotice('İzleyici erişiminde görev verilemez.');return;}setComposer(role);};
+ const requestTask=(role='chief')=>{if(ROSTER.find(r=>r.key===role)?.available===false){setNotice('Ajan tanımı kaldırıldı. Mevcut oturuma dönebilir veya başka bir ajan seçebilirsin.');return;}if(!state.operator){setNotice('İzleyici erişiminde görev verilemez.');return;}setComposer(role);};
  const changeTheme=(next:Theme)=>{const layout=makeLayout(next);office.rebuildFromLayout(layout);onLayout(layout);transport.send({type:'saveLayout',layout});setTheme(next);localStorage.setItem(workspaceStorage('bb-theme'),next);};
  const changeAmbience=(next:Ambience)=>{setAmbience(next);localStorage.setItem(workspaceStorage('bb-ambience'),next);};
  const focus=(i:number)=>{setMemberFocus(null);setSelected(i);const id=bindings.get(ROSTER[i].key)??residentId(i);office.selectedAgentId=id;office.cameraFollowId=id;setView('office');};
@@ -169,7 +190,7 @@ export function BibilenOffice({office,onLayout,subagents,zoom,onZoom,panRef,onEd
   {view==='operations'&&<main className="bb-workspace"><OperationCenter tasks={state.tasks} work={work} office={office} stateAvailable={stateAvailable} lastCheck={lastWorkCheck} openWork={setWorkTarget} openSession={openSession} focusMember={focusMember}/></main>}
   {view==='tasks'&&<main className="bb-workspace"><ProjectSummary tasks={state.tasks} work={work} available={stateAvailable} operator={state.operator} onWork={id=>setWorkTarget({taskId:id})} onSession={openSession}/><details className="bb-task-connection" open={state.execution?.status!=='ready'||undefined}><summary>{state.execution?.status==='ready'?'Claude bağlantısı hazır':'Claude bağlantısını kontrol et'}</summary><ConnectionStatus operator={state.operator} value={state.execution} onChange={reload}/></details><TaskBoard available={stateAvailable} onNew={()=>requestTask()} tasks={state.tasks} operator={state.operator} onOpen={setConsoleTask} onSession={openSession} onWork={id=>setWorkTarget({taskId:id})} onChange={reload}/></main>}
   {view==='sessions'&&<main className="bb-workspace"><SessionDirectory operator={state.operator} office={office} focusMember={focusMember} execution={state.execution} onCheck={reload} initialSessionId={sessionTarget} onWork={id=>setWorkTarget({sessionId:id})} onTask={id=>{const task=state.tasks.find(t=>t.id===id);if(task)setConsoleTask(task);}}/></main>}
-  {view==='team'&&<main className="bb-workspace"><TeamDirectory available={stateAvailable&&work.inventoryAvailable} operator={state.operator} workGroups={work.groups} openWork={id=>setWorkTarget({sessionId:id})} tasks={state.tasks} bindings={bindings} focus={focus} startTask={requestTask}/></main>}
+  {view==='team'&&<main className="bb-workspace"><TeamDirectory catalog={catalog} catalogError={catalogError} catalogVersion={catalogVersion} available={stateAvailable&&work.inventoryAvailable} operator={state.operator} workGroups={work.groups} openWork={id=>setWorkTarget({sessionId:id})} tasks={state.tasks} bindings={bindings} focus={focus} startTask={requestTask}/></main>}
   {view==='history'&&<main className="bb-workspace">{state.operator&&<HistorySearch onSession={openSession}/>}<TaskBoard available={stateAvailable} onNew={()=>requestTask()} tasks={state.tasks} operator={state.operator} history onOpen={setConsoleTask} onSession={openSession} onWork={id=>setWorkTarget({taskId:id})} onChange={reload}/>{state.operator&&<section className="bb-audit"><h2>İşlem geçmişi</h2>{recentEvents.map(e=><p key={e.id}><time>{new Date(e.at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</time>{e.message}</p>)}</section>}</main>}
   <nav className="bb-mobile-nav" aria-label="Ana bölümler">{([['office','Ofis','home'],['operations','Operasyon','operations'],['tasks','Görevler','tasks'],['sessions','Oturumlar','terminal']] as const).map(([id,label,icon])=><button key={id} className={view===id?'active':''} aria-current={view===id?'page':undefined} onClick={()=>{setSessionTarget(null);if(id==='office'){closeAgent();requestAnimationFrame(()=>goToRoom(-1));}setView(id);}}><Icon name={icon}/><span>{label}</span></button>)}</nav>
   {composer&&<TaskComposer defaultRole={composer} execution={state.execution} onCheck={reload} close={()=>setComposer(null)} onCreated={()=>{reload();setView('tasks');}}/>}{consoleTask&&<Suspense fallback={<p role="status">Terminal yükleniyor…</p>}><TaskConsole task={consoleTask} close={()=>setConsoleTask(null)}/></Suspense>}

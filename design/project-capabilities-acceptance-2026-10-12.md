@@ -39,3 +39,35 @@ was requested; no Windows service or network grant is installed in this stage.
 Official format references:
 - https://code.claude.com/docs/en/sub-agents
 - https://code.claude.com/docs/en/skills
+
+## Local completion — live synchronization
+
+The active owner panel reconciles capabilities every five seconds while visible,
+and on focus/visibility return. One request is in flight; closed-page responses
+and mismatched workspace identities cannot change the team. Errors preserve the
+last verified roster with a visible warning, rather than clearing it.
+
+Residents now use role-key identities and stable appearance seeds. Reordering or
+inserting definitions does not transfer a character's state to a different agent.
+Removed idle residents release seats and camera focus. Removed definitions with
+real active sessions remain visible with new-work controls disabled; their actual
+CLI process is not stopped. Native running-session configuration is still separate
+from catalog freshness, and this distinction is displayed.
+
+Only roster-owned workstation pairs are reconciled on membership changes.
+Existing station positions and other decor are retained, new pairs check placement
+occupancy, and no layout-save command or terminal command is sent by discovery.
+Large teams may exceed physical workstation capacity; roles remain available.
+
+The project registration flow now shows discovered counts, agents and diagnostics
+before opening the project. Existing definitions need no starter template.
+Conversation skill lists follow inventory changes without replacing typed drafts;
+a removed skill clears only its selector. Removed-role form selections are shown
+explicitly and cannot launch new work.
+
+Validation: full backend suite 170/170 and UI suite 79/79 passed; TypeScript/Vite
+build succeeded. Dedicated tests cover request coalescing, disposed/foreign
+responses, outage recovery, identity/appearance stability, removed live roles and
+workstation/decor preservation. Private gateway deployment uses the existing
+LaunchAgent. Windows connection remains deliberately deferred by the owner;
+current polling reconciles missed edits without relying on filesystem watchers.

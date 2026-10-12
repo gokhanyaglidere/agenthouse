@@ -71,7 +71,7 @@ export const prepareOperation=(input:{kind:string;sourceId?:string;notes?:string
 
 export interface ProjectInventory {defaultWorkspaceId:string;projects:Array<{id:string;name:string}>;workspaces:Array<{id:string;projectId:string;root?:string;runtime:string}>;admission:{limit:number;active:number};}
 export const getProjects=()=>request<ProjectInventory>('projects');
-export const registerProject=(name:string,path:string,templates=false)=>request<{workspace:{id:string}}>('projects',{method:'POST',body:JSON.stringify({name,path,templates})});
+export const registerProject=(name:string,path:string,templates=false)=>request<{workspace:{id:string};capabilities:CapabilityInventory}>('projects',{method:'POST',body:JSON.stringify({name,path,templates})});
 export const getPortfolio=()=>request<{items:Array<{workspaceId:string;projectId:string;name:string;available:boolean;tasks:BibilenTask[];inventoryAvailable:boolean;connectedSessions:number;workingMembers:Array<{sessionId:string;id:string;label:string;role:string|null}>}>;admission:{limit:number;active:number}}>('portfolio');
 
 export const getSessionCatalog=()=>request<{sessions:import('./types.js').CatalogSession[];inventoryAvailable:boolean;source:string}>('session-catalog');
@@ -111,5 +111,5 @@ export const revokeObserver=(id:string)=>request<SharingState>(`sharing/grants/$
 export const publishObserverItem=(input:{kind:string;sourceId:string;title:string;summary:string})=>request<SharingState>('sharing/items',{method:'POST',body:JSON.stringify(input)});
 export const removeObserverItem=(id:string)=>request<SharingState>(`sharing/items/${encodeURIComponent(id)}/remove`,{method:'POST',body:'{}'});
 
-export interface CapabilityInventory{revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;skills:string[]}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
+export interface CapabilityInventory{workspaceId?:string;projectId?:string;hostId?:string;revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean}>}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
 export const getCapabilities=()=>request<CapabilityInventory>('capabilities');

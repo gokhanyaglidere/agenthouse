@@ -75,3 +75,8 @@ Windows/WSL host connection, cross-host notifications and sharing acceptance fol
 Project-native team plan stage 1 is implemented. See
 [local discovery acceptance](project-capabilities-acceptance-2026-10-12.md).
 In-place live office reconciliation and Windows host setup remain tracked work.
+
+Local capability synchronization, stable role-based resident identities, removed
+live-role handling, skill-selector synchronization and onboarding discovery
+summary are implemented. Local verification: 170 backend + 79 UI tests. Windows
+host connection remains deferred; no Windows device or network setup was changed.

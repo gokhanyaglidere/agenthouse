@@ -1,12 +1,15 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useState,useRef} from 'react';
 import {getSkillCatalog,getSkillInstruction} from './api.js';
 import type {SkillChoice} from './api.js';
 export function SessionControls({canWrite,stage,send}:{canWrite:boolean;stage:(text:string)=>boolean;send:(text:string)=>boolean}){
  const [expanded,setExpanded]=useState(false);
  const [model,setModel]=useState('sonnet'),[effort,setEffort]=useState('high'),[skills,setSkills]=useState<SkillChoice[]>([]),[skill,setSkill]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
- useEffect(()=>{let current=true;void getSkillCatalog().then(value=>{if(current)setSkills(value.skills);}).catch(()=>{if(current)setNotice('Proje skill’leri alınamadı; yeniden listeleyebilirsin.');});return()=>{current=false;};},[]);
+ const skillsEpoch=useRef(0);
+ useEffect(()=>{let current=true;const epoch=skillsEpoch.current;void getSkillCatalog().then(value=>{if(current&&epoch===skillsEpoch.current)setSkills(value.skills);}).catch(()=>{if(current&&epoch===skillsEpoch.current)setNotice('Proje skill’leri alınamadı; yeniden listeleyebilirsin.');});return()=>{current=false;};},[]);
+ const selectedSkill=useRef(skill);selectedSkill.current=skill;
+ useEffect(()=>{const update=(event:Event)=>{skillsEpoch.current++;const value=(event as CustomEvent<import('./api.js').CapabilityInventory>).detail;setSkills(value.skills);if(selectedSkill.current&&!value.skills.some(s=>s.id===selectedSkill.current)){setSkill('');setNotice('Seçilen skill tanımı kaldırıldı. Yazdığın taslak korunuyor.');}};window.addEventListener('agent-house-capabilities',update);return()=>window.removeEventListener('agent-house-capabilities',update);},[]);
  const put=(text:string)=>setNotice(stage(text)?'Taslağa eklendi. Kontrol edip Gönder’e bas.':'Önce mevcut taslağını gönder veya temizle.');
- const load=async()=>{setBusy(true);try{setSkills((await getSkillCatalog()).skills);setNotice('Proje ve kişisel skill talimatları listelendi.');}catch(e){setNotice(e instanceof Error?e.message:'Skill listesi alınamadı.');}finally{setBusy(false);}};
+ const load=async()=>{setBusy(true);const epoch=skillsEpoch.current;try{const value=await getSkillCatalog();if(epoch===skillsEpoch.current){setSkills(value.skills);setNotice('Proje ve kişisel skill talimatları listelendi.');}}catch(e){setNotice(e instanceof Error?e.message:'Skill listesi alınamadı.');}finally{setBusy(false);}};
  return <details className="bb-session-controls bb-live-controls" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}><summary>Model · Efor · Mod · Skill</summary><div className="bb-session-control-body"><div className="bb-control-heading"><strong>Konuşma ayarları</strong><button aria-label="Konuşma ayarlarını kapat" onClick={()=>setExpanded(false)}>Kapat</button></div><div className="bb-session-control-grid">
  <label>Model<select value={model} onChange={e=>setModel(e.target.value)}><option value="sonnet">Sonnet</option><option value="opus">Opus</option><option value="haiku">Haiku</option><option value="">Claude’ın model menüsü</option></select><button disabled={!canWrite} onClick={()=>put(model?`/model ${model}`:'/model')}>Komutu taslağa ekle</button></label>
  <label>Efor<select value={effort} onChange={e=>setEffort(e.target.value)}>{['low','medium','high','xhigh','max'].map((v,i)=><option key={v} value={v}>{['Düşük','Orta','Yüksek','Çok yüksek','En yüksek'][i]}</option>)}</select><button disabled={!canWrite} onClick={()=>put(`/effort ${effort}`)}>Komutu taslağa ekle</button></label>
