@@ -203,7 +203,7 @@ export function updateCharacter(
           // Claim the destination while walking, not only after arrival.
           const occupied:Array<{col:number;row:number}>=[];
           for(const other of peers){if(other.id===ch.id||other.sessionHidden)continue;occupied.push({col:other.tileCol,row:other.tileRow});const end=other.ambientTarget??other.path.at(-1);if(end)occupied.push(end);}
-          const free=(t:{col:number;row:number})=>!blockedTiles.has(`${t.col},${t.row}`)&&!occupied.some(o=>Math.abs(o.col-t.col)+Math.abs(o.row-t.row)<2);
+          const free=(t:{col:number;row:number})=>(!blockedTiles.has(`${t.col},${t.row}`)||'seatUid' in t&&typeof t.seatUid==='string'&&seats.has(t.seatUid)&&!seats.get(t.seatUid)!.assigned)&&!occupied.some(o=>Math.abs(o.col-t.col)+Math.abs(o.row-t.row)<2);
           const social=stations.filter(free);
           const available=walkableTiles.filter(free);
           if(!available.length){ch.wanderTimer=2;break;}
@@ -215,7 +215,7 @@ export function updateCharacter(
             target.col,
             target.row,
             tileMap,
-            blockedTiles,
+            visit?.seatUid?new Set([...blockedTiles].filter(key=>key!==`${visit.col},${visit.row}`)):blockedTiles,
           );
           if (path.length > 0) {
             ch.ambientTarget=visit;
@@ -355,8 +355,8 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       if(!ch.isActive&&(ch.ambientPause??0)>0){
         if(ch.ambientPartnerId!==undefined)return sprites.typing[ch.dir][Math.floor((ch.ambientElapsed??0)/.7)%2];
         const kind=ch.ambientTarget?.activity;
-        if(kind==='arcade'||kind==='pool'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
-        if(kind)return activitySprite(sprites.walk[ch.dir][1],kind,ch.ambientElapsed??0);
+        if(kind==='arcade'||kind==='pool'||kind==='water'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
+        if(kind)return activitySprite(sprites.walk[ch.dir][1],kind,ch.ambientElapsed??0,ch.ambientTarget?.seated??false);
       }
       return sprites.walk[ch.dir][1];
     default:

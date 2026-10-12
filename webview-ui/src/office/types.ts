@@ -201,7 +201,7 @@ export interface Character {
   /** Timer for idle wander decisions */
   wanderTimer: number;
   /** Visual-only social visit; never marks a Claude session as working. */
-  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool';furnitureUid?:string;facing?:Direction;offsetX?:number;offsetY?:number};
+  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool'|'meal'|'bench'|'water';furnitureUid?:string;facing?:Direction;offsetX?:number;offsetY?:number;seatUid?:string;seated?:boolean};
   ambientElapsed?: number;
   ambientPartnerId?:number;
   ambientChatTimer?:number;
