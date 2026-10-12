@@ -15,7 +15,7 @@ export class SessionCatalog{
   if(existsSync(this.root))for(const directory of readdirSync(this.root)){
    const root=join(this.root,directory);if(!lstatSync(root).isDirectory())continue;
    if(runtimes.some(r=>resolve(r.sessionManager.root)===resolve(root)))continue;
-   let manager=this.readers.get(directory);if(!manager){manager=new SessionManager({cwd:'/',root,storePath:join(root,'.bibilen-discovery-unused.json'),allowedRoles:new Set(),listAgents:async()=>null});manager.known=async id=>{const path=manager.path(id);if(!existsSync(path)||!lstatSync(path).isFile())throw Error('Oturum kaydı bulunamadı.');return manager.fileInfo(id);};this.readers.set(directory,manager);}
+   let manager=this.readers.get(directory);if(!manager){manager=new SessionManager({cwd:'/',root,discoveryReadOnly:true,storePath:join(root,'.bibilen-discovery-unused.json'),allowedRoles:new Set(),listAgents:async()=>null});manager.known=async id=>{const path=manager.path(id);if(!existsSync(path)||!lstatSync(path).isFile())throw Error('Oturum kaydı bulunamadı.');return manager.fileInfo(id);};this.readers.set(directory,manager);}
    for(const filename of readdirSync(root)){
     const id=filename.replace(/\.jsonl$/,'');if(!filename.endsWith('.jsonl')||!validSessionId(id)||!lstatSync(join(root,filename)).isFile())continue;
     let info;try{info=manager.fileInfo(id);}catch{continue;}

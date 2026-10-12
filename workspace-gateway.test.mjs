@@ -75,7 +75,7 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  await request('project-policy',{workspace:aid,body:{allowNewWork:true}});
  // Exercise the real guard HTTP boundary without launching a model or command.
  const guardToken=JSON.parse(readFileSync(join(privateDir,'bibilen-tool-guard.json'),'utf8')).token;
- const payload={guard_policy_revision:(await request('project-policy',{workspace:aid})).body.toolRevision,hook_event_name:'PreToolUse',session_id:'fixture-session',tool_name:'Bash',tool_input:{command:'git push && rm -rf fixture-only'}};
+ const payload={guard_runtime_revision:2,guard_policy_revision:(await request('project-policy',{workspace:aid})).body.toolRevision,hook_event_name:'PreToolUse',session_id:'fixture-session',tool_name:'Bash',tool_input:{command:'git push && rm -rf fixture-only'}};
  const guardedFetch=(workspace,token)=>fetch(base+'/bibilen/guard/check?workspaceId='+workspace,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(payload)});
  assert.equal((await guardedFetch(aid,'invalid')).status,403);
  assert.equal((await guardedFetch(bid,guardToken)).status,403);

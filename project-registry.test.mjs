@@ -1,3 +1,4 @@
+import lockfile from 'proper-lockfile';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,renameSync,symlinkSync,rmSync,statSync} from 'node:fs';
@@ -88,7 +89,7 @@ test('separate registry instances serialize updates without dropping a project',
  const f=fixture(t),other=new ProjectRegistry(f);
  const a=f.registry.register({name:'A',path:f.a});other.register({name:'B',path:f.b});
  assert.equal(f.registry.publicState().projects.length,2);assert.equal(other.context(a.id).projectId,a.projectId);
- writeFileSync(f.path+'.lock','');assert.throws(()=>f.registry.register({name:'A',path:f.a}),/başka bir işlemde/);
+ const release=lockfile.lockSync(f.path,{realpath:false,lockfilePath:f.path+'.write-lock',stale:30000});try{assert.throws(()=>f.registry.register({name:'A',path:f.a}),/başka bir işlemde/);}finally{release();}
 });
 test('portable profiles preserve existing instructions and refuse external agent directories',async t=>{
  const {installProjectProfiles}=await import('./project-onboarding.mjs');const f=fixture(t);

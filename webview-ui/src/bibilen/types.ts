@@ -4,11 +4,11 @@ export interface BibilenTask {
   id:string;title:string;prompt?:string;role:string;priority:Priority;status:TaskStatus;
   stage?:'queued'|'starting'|'researching'|'coding'|'testing'|'working'|'waiting'|'done'|'failed'|'stopped';
   createdAt:number;startedAt:number|null;completedAt:number|null;sessionId?:string|null;
-  summary?:string;error?:string;
+  summary?:string;error?:string;queueReason?:string;
 }
 export interface TaskEvent {id:string;taskId:string|null;type:string;message:string;at:number}
 export interface CommandState {
-  operator:boolean;settings:{maxConcurrent:number};tasks:BibilenTask[];events:TaskEvent[];serverTime:number;
+  operator:boolean;settings:{maxConcurrent:number;writeConcurrency?:number};tasks:BibilenTask[];events:TaskEvent[];serverTime:number;
   execution?:ExecutionStatus;
 }
 export interface ExecutionStatus {status:'unchecked'|'ready'|'blocked'|'unavailable';message:string;checkedAt:number|null}

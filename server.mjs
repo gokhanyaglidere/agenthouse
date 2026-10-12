@@ -1,3 +1,4 @@
+import {resolveSession} from './session-identity.mjs';
 import {ObserverSharing,observerItem} from './observer-sharing.mjs';
 import {searchConversations} from './conversation-search.mjs';
 import {SkillCatalog} from './skill-catalog.mjs';
@@ -41,7 +42,7 @@ const gatewayPort=Number(process.env.BIBILEN_GATEWAY_PORT??3100);
 const nativePort=Number(process.env.BIBILEN_NATIVE_PORT??3101);
 const registeredDefault=projects.data.workspaces.find(w=>w.id===projects.data.defaultWorkspaceId);
 const defaultRoot=process.env.BIBILEN_DEFAULT_CWD??registeredDefault?.root??here;
-const defaultWorkspace=projects.register({name:'Agent House',path:defaultRoot,legacy:!registeredDefault||registeredDefault.root===defaultRoot});
+const defaultWorkspace=projects.data.workspaces.find(w=>w.root===realpathSync(defaultRoot))??projects.register({name:'Agent House',path:defaultRoot,legacy:!registeredDefault||registeredDefault.root===defaultRoot});
 const executionContext=projects.context(defaultWorkspace.id);
 const cwd=executionContext.cwd;
 // LaunchAgent's minimal PATH must also reach background Claude hooks and tools.
@@ -74,18 +75,18 @@ function getRuntime(workspaceId){
  const launchGuard=()=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode});
  const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,context,admission,launchGuard,checkNewWork:()=>policy.assertNewWork(),onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
- const spawnTerminal=args=>{
+ const spawnTerminal=(args,{session}={})=>{
   context.assertValid();
-  if(args[0]==='attach')return pty.spawn(claudePath,args,{name:'xterm-256color',cols:100,rows:32,cwd:context.cwd,env:{...process.env,TERM:'xterm-256color'}});
+  if(args[0]==='attach'){const key=context.workspaceId+':attach:'+session.id;admission.reserveControl(key,context.cwd,session.taskId);try{const terminal=pty.spawn(claudePath,args,{name:'xterm-256color',cols:100,rows:32,cwd:context.cwd,env:{...process.env,TERM:'xterm-256color'}});terminal.onExit(()=>admission.releaseControl(key));return terminal;}catch(error){admission.releaseControl(key);throw error;}}
   const id=args[args.indexOf(args.includes('--session-id')?'--session-id':'--resume')+1];
   const key=context.workspaceId+':'+id;
-  admission.reserve(key);
+  admission.reserve(key,context.cwd);
   try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
  const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:()=>taskManager.listAgents(),
-  restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
+  restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
  const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
@@ -130,7 +131,7 @@ wss.on('connection',(ws,req)=>{
  if(!runtime.terminal){
   const key=runtime.context.workspaceId+':console';
   try{
-   runtime.policy.assertNewWork();runtime.context.assertValid();admission.reserve(key);
+   runtime.policy.assertNewWork();runtime.context.assertValid();admission.reserve(key,runtime.cwd);
    runtime.terminal=pty.spawn(claudePath,['--permission-mode','default',...runtime.launchGuard(),'--append-system-prompt',`${runtime.context.projectName} projesinin koordinatörü Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Uzman gerektiğinde bu projenin .claude/agents tanımlarını kullan.`],{name:'xterm-256color',cols:100,rows:32,cwd:runtime.cwd,env:{...process.env,TERM:'xterm-256color'}});
    runtime.terminal.onData(broadcast);runtime.terminal.onExit(({exitCode})=>{admission.release(key);broadcast(`\r\nClaude Code oturumu kapandı (${exitCode}).\r\n`);runtime.terminal=null;});
   }catch(error){admission.release(key);runtime.controller=null;ws.send(error.message);ws.close(1011);return;}
@@ -146,11 +147,12 @@ taskWss.on('connection',(ws,req)=>{
   const task=taskManager.get(req.bibilenTaskId);
   if(!task?.sessionId){ws.close(1008,'Görev oturumu hazır değil');return;}
   if(taskTerminals.has(task.id)||[...sessionManager.live.keys()].some(id=>id===task.sessionId||id.startsWith(task.sessionId+'-'))){ws.close(1008,'Görev başka bir panelde açık');return;}
-  let attached;
+  let attached;const controlKey=context.workspaceId+':task-view:'+task.id;
   try{
-    context.assertValid();
+    context.assertValid();admission.reserveControl(controlKey,cwd,task.id);
     attached=pty.spawn(claudePath,['attach',task.sessionId],{name:'xterm-256color',cols:100,rows:32,cwd,env:{...process.env,TERM:'xterm-256color',PATH:`/opt/homebrew/bin:/usr/local/bin:${process.env.PATH??''}`}});
-  }catch{ws.close(1011,'Claude oturumuna bağlanılamadı');return;}
+  }catch{admission.releaseControl(controlKey);ws.close(1011,'Claude oturumuna bağlanılamadı veya klasör başka bir işte');return;}
+  attached.onExit(()=>admission.releaseControl(controlKey));
   watchTaskTerminal(taskTerminals,task.id,attached,ws);
   attached.onData(data=>{if(ws.readyState===WebSocket.OPEN)ws.send(data);});
   ws.on('message',raw=>{
@@ -209,7 +211,7 @@ async function handleObserverApi(req,res,url){
   let data=inventories.get(source.id);
   if(!data){try{const r=getRuntime(source.id);const [sessions,work]=await Promise.all([r.sessionManager.list(),r.workTracker.overview()]);data={r,sessions,work};}catch{data={unavailable:true};}inventories.set(source.id,data);}
   const task=data.r?.taskManager.get(item.kind==='task'?item.sourceId:'');
-  const session=data.sessions?.sessions.find(s=>s.id===(item.kind==='session'?item.sourceId:task?.sessionId));
+  let session=null;try{session=resolveSession(data.sessions?.sessions??[],{sessionId:item.kind==='session'?item.sourceId:task?.sessionId,taskId:task?.id});}catch{}
   const trace=data.work?.groups.find(g=>g.sessionId===session?.id);
   items.push(observerItem(item,{task,session,trace,inventoryAvailable:!data.unavailable&&data.sessions?.inventoryAvailable&&data.work?.inventoryAvailable}));
  }
@@ -303,7 +305,7 @@ async function handleApi(req,res,url){
     const taskWorkMatch=url.pathname.match(/^\/bibilen\/api\/tasks\/([^/]+)\/work$/);
     if(req.method==='GET'&&taskWorkMatch){
       const task=taskManager.get(taskWorkMatch[1]);if(!task){sendJson(res,404,{error:'Görev bulunamadı.'});return true;}
-      const inventory=await sessionManager.list();const session=inventory.sessions.find(s=>s.taskId===task.id);
+      const inventory=await sessionManager.list();const session=resolveSession(inventory.sessions,{sessionId:task.sessionId,taskId:task.id});
       sendJson(res,200,{task,trace:session?await workTracker.trace(session):null,events:taskManager.data.events.filter(e=>e.taskId===task.id).slice(0,40)});return true;
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/conversation-search'){

@@ -5,11 +5,12 @@
   "description": "Project-independent Claude Code office, powered by Pixel Agents",
   "scripts": {
     "generate-layout": "node generate-default-layout.mjs",
-    "test": "node --test observer-sharing.test.mjs conversation-search.test.mjs session-options.test.mjs skill-catalog.test.mjs tool-guard.test.mjs project-policy.test.mjs control-auth.test.mjs task-manager.test.mjs execution-health.test.mjs session-manager.test.mjs work-tracker.test.mjs task-terminal-lifecycle.test.mjs push-manager.test.mjs session-presence.test.mjs access-policy.test.mjs terminal-broker.test.mjs session-notifications.test.mjs changes.test.mjs usage.test.mjs usage-monitor.test.mjs integrations.test.mjs slack-alarms.test.mjs daily-reports.test.mjs slack-hub.test.mjs appearance.test.mjs operations.test.mjs project-registry.test.mjs workspace-services.test.mjs workspace-gateway.test.mjs session-catalog.test.mjs state-backup.test.mjs"
+    "test": "node --test gap-regressions.test.mjs observer-sharing.test.mjs conversation-search.test.mjs session-options.test.mjs skill-catalog.test.mjs tool-guard.test.mjs project-policy.test.mjs control-auth.test.mjs task-manager.test.mjs execution-health.test.mjs session-manager.test.mjs work-tracker.test.mjs task-terminal-lifecycle.test.mjs push-manager.test.mjs session-presence.test.mjs access-policy.test.mjs terminal-broker.test.mjs session-notifications.test.mjs changes.test.mjs usage.test.mjs usage-monitor.test.mjs integrations.test.mjs slack-alarms.test.mjs daily-reports.test.mjs slack-hub.test.mjs appearance.test.mjs operations.test.mjs project-registry.test.mjs workspace-services.test.mjs workspace-gateway.test.mjs session-catalog.test.mjs state-backup.test.mjs"
   },
   "dependencies": {
     "node-pty": "^1.1.0",
     "pixel-agents": "1.4.1",
+    "proper-lockfile": "^4.1.2",
     "web-push": "^3.6.7",
     "ws": "^8.22.0"
   }

@@ -1,5 +1,6 @@
+import lockfile from 'proper-lockfile';
 import {randomUUID, createHash} from 'node:crypto';
-import {existsSync, realpathSync, statSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync, readdirSync, openSync, closeSync, unlinkSync} from 'node:fs';
+import {existsSync, realpathSync, statSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync, readdirSync, } from 'node:fs';
 import {dirname, join} from 'node:path';
 import {homedir} from 'node:os';
 import {execFileSync} from 'node:child_process';
@@ -9,7 +10,7 @@ function identity(path) {
   const stat = statSync(root);
   if (!stat.isDirectory()) throw new Error('Çalışma ortamı bir klasör olmalı.');
   let gitCommonDir = null;
-  try { gitCommonDir = realpathSync(execFileSync('git', ['-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], {encoding:'utf8', stdio:['ignore','pipe','ignore']}).trim()); } catch {}
+  try { gitCommonDir = realpathSync(execFileSync('git', ['-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], {encoding:'utf8', stdio:['ignore','pipe','ignore'],timeout:5000,maxBuffer:16384}).trim()); } catch {}
   return {root, device:stat.dev, inode:stat.ino, gitCommonDir};
 }
 
@@ -32,8 +33,8 @@ export class ProjectRegistry {
   reload(){if(existsSync(this.path)){const data=JSON.parse(readFileSync(this.path,'utf8'));if(data.version!==1||!Array.isArray(data.projects)||!Array.isArray(data.workspaces))throw new Error('Proje kaydı geçersiz.');this.data=data;}}
   register(input) {
     mkdirSync(dirname(this.path),{recursive:true,mode:0o700});
-    let lock;try{lock=openSync(this.path+'.lock','wx',0o600);}catch(error){if(error.code==='EEXIST')throw new Error('Proje kaydı başka bir işlemde güncelleniyor. Tekrar dene.');throw error;}
-    try{this.reload();return this.registerUnlocked(input);}finally{closeSync(lock);unlinkSync(this.path+'.lock');}
+    let release;try{release=lockfile.lockSync(this.path,{realpath:false,lockfilePath:this.path+'.write-lock',stale:30000,update:5000});}catch(error){if(error.code==='ELOCKED')throw new Error('Proje kaydı başka bir işlemde güncelleniyor. Tekrar dene.');throw error;}
+    try{this.reload();return this.registerUnlocked(input);}finally{release();}
   }
   registerUnlocked({name, path, legacy=false}) {
     const label = String(name??'').trim();

@@ -1,20 +1,25 @@
 // One account-wide admission gate. Native external CLI sessions remain observable,
 // but are not controlled or silently stopped by this panel.
 export class Admission {
- constructor({limit=3}={}) {this.limit=limit;this.managers=new Set();this.interactive=new Set();this.pendingRecovery=new Set();}
+ constructor({limit=3}={}) {this.limit=limit;this.managers=new Set();this.interactive=new Set();this.interactiveWorkspaces=new Map();this.controllers=new Map();this.pendingRecovery=new Set();}
  add(manager){this.managers.add(manager);}
- active(){let count=this.interactive.size;for(const m of this.managers)count+=new Set([...m.data.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.id),...m.launching]).size;return count;}
+ active(){let count=this.interactive.size+[...this.controllers.values()].filter(c=>!this.taskActive(c.taskId)).length;for(const m of this.managers)count+=new Set([...m.data.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.id),...m.launching]).size;return count;}
  canLaunch(manager,task){
-  if(this.pendingRecovery.size||this.active()>=this.limit)return false;
+  if(this.pendingRecovery.size||this.active()>=this.limit||this.workspaceBusy(manager.cwd))return false;
   const candidates=[...this.managers].flatMap(m=>{
    const active=new Set([...m.data.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.id),...m.launching]).size;
-   return active<m.data.settings.maxConcurrent?m.data.tasks.filter(t=>t.status==='queued').map(t=>({m,t})):[];
+   return active<m.data.settings.maxConcurrent&&!this.workspaceBusy(m.cwd)?m.data.tasks.filter(t=>t.status==='queued').map(t=>({m,t})):[];
   }).sort((a,b)=>({urgent:0,high:1,normal:2}[a.t.priority]-{urgent:0,high:1,normal:2}[b.t.priority])||a.t.createdAt-b.t.createdAt||a.t.id.localeCompare(b.t.id));
   return candidates[0]?.m===manager&&candidates[0]?.t===task;
  }
- reserve(key){if(this.pendingRecovery.size)throw new Error('Oturumlar geri yükleniyor. Biraz sonra tekrar dene.');if(this.interactive.has(key))return; if(this.active()>=this.limit)throw new Error('Ortak çalışma sınırı dolu. Açık bir oturumu kapat veya çalışan görevin bitmesini bekle.');this.interactive.add(key);}
- recover(key){this.interactive.add(key);}
- release(key){this.interactive.delete(key);}
+ taskActive(id){return !!id&&[...this.managers].some(m=>m.data.tasks.some(t=>t.id===id&&['starting','running','waiting'].includes(t.status))||m.launching.has(id));}
+ workspaceBusy(cwd,excludeTaskId){if(!cwd)return false;return [...this.interactiveWorkspaces.values()].includes(cwd)||[...this.controllers.values()].some(c=>c.cwd===cwd)||[...this.managers].some(m=>m.cwd===cwd&&(m.data.tasks.some(t=>t.id!==excludeTaskId&&['starting','running','waiting'].includes(t.status))||[...m.launching].some(id=>id!==excludeTaskId)));}
+ reserve(key,cwd){if(this.pendingRecovery.size)throw new Error('Oturumlar geri yükleniyor. Biraz sonra tekrar dene.');if(this.interactive.has(key))return;if(this.workspaceBusy(cwd))throw Error('Bu çalışma klasöründe başka bir panel işi veya yazılabilir oturum var. Mevcut oturuma dön ya da bitmesini bekle.');if(this.active()>=this.limit)throw new Error('Ortak çalışma sınırı dolu. Açık bir oturumu kapat veya çalışan görevin bitmesini bekle.');this.interactive.add(key);if(cwd)this.interactiveWorkspaces.set(key,cwd);}
+ recover(key,cwd){this.interactive.add(key);if(cwd)this.interactiveWorkspaces.set(key,cwd);}
+ release(key){this.interactive.delete(key);this.interactiveWorkspaces.delete(key);}
+ reserveControl(key,cwd,taskId){if(this.pendingRecovery.size)throw Error('Oturumlar geri yükleniyor.');if(this.controllers.has(key)||this.workspaceBusy(cwd,taskId))throw Error('Bu çalışma klasörünün yazma kontrolü başka bir oturumda.');if(!this.taskActive(taskId)&&this.active()>=this.limit)throw Error('Ortak çalışma sınırı dolu.');this.controllers.set(key,{cwd,taskId});}
+ releaseControl(key){this.controllers.delete(key);}
+
  state(){return {limit:this.limit,active:this.active(),scope:'account',externalSessionsControlled:false};}
 }
 

@@ -1,5 +1,5 @@
+import {runCli} from './cli-command.mjs';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -9,6 +9,7 @@ const STORE_PATH = join(STORE_DIR, 'bibilen-tasks.json');
 const TERMINAL_STATES = new Set(['completed', 'failed', 'stopped']);
 const PRIORITIES = new Set(['normal', 'high', 'urgent']);
 const MAX_TASKS = 250;
+const MAX_PENDING = 250;
 
 export function cleanAnsi(value = '') {
   return String(value)
@@ -63,24 +64,13 @@ export function inferStage(logs = '') {
   return 'working';
 }
 
-function run(command, args, options = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
-    child.on('error', (error) => resolve({ code: -1, stdout, stderr: error.message }));
-    child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }));
-  });
-}
 
 function initialData() {
   return { version: 1, settings: { maxConcurrent: 3 }, tasks: [], events: [] };
 }
 
 export class TaskManager {
-  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = run, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{} }) {
+  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = runCli, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{} }) {
     this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
     this.context = context;
     this.admission = admission;
@@ -108,9 +98,11 @@ export class TaskManager {
   load() {
     try {
       const parsed = JSON.parse(readFileSync(this.storePath, 'utf8'));
+      if(!parsed||parsed.version!==undefined&&parsed.version!==1||!Array.isArray(parsed.tasks)||parsed.events!==undefined&&!Array.isArray(parsed.events))throw Error('Invalid task store');
       return { ...initialData(), ...parsed, settings: { ...initialData().settings, ...parsed.settings } };
-    } catch {
-      return initialData();
+    } catch(error) {
+      if(error.code==='ENOENT')return initialData();
+      throw Error('Görev kaydı doğrulanamadı; mevcut kayıtlar sıfırlanmadı.');
     }
   }
 
@@ -119,9 +111,10 @@ export class TaskManager {
     const tmp = `${this.storePath}.tmp`;
     const limited = {
       ...this.data,
-      tasks: this.data.tasks.slice(0, MAX_TASKS),
+      tasks: [...this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)),...this.data.tasks.filter(t=>TERMINAL_STATES.has(t.status)).slice(0,MAX_TASKS)].sort((a,b)=>b.createdAt-a.createdAt),
       events: this.data.events.slice(0, 1000),
     };
+    this.data.tasks=limited.tasks;
     writeFileSync(tmp, `${JSON.stringify(limited, null, 2)}\n`, { mode: 0o600 });
     renameSync(tmp, this.storePath);
     chmodSync(this.storePath, 0o600);
@@ -147,6 +140,7 @@ export class TaskManager {
   create(input) {
     this.checkNewWork?.();
     this.context?.assertValid();
+    if(this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)).length>=MAX_PENDING)throw new Error('Bu projede bekleyen iş sınırı dolu (250). Mevcut işleri tamamla veya iptal et.');
     const values = validateTaskInput(input, this.allowedRoles);
     const taskId = randomUUID();
     const task = {
@@ -188,7 +182,7 @@ export class TaskManager {
     });
     return {
       operator: isOperator,
-      settings: this.data.settings,
+      settings: {...this.data.settings,writeConcurrency:1},
       tasks,
       events: isOperator ? this.data.events.slice(0, 100) : [],
       serverTime: Date.now(),
@@ -206,7 +200,9 @@ export class TaskManager {
 
   async schedule() {
     const active = new Set([...this.data.tasks.filter(task => ['starting', 'running', 'waiting'].includes(task.status)).map(task => task.id), ...this.launching]).size;
-    const free = Math.max(0, this.data.settings.maxConcurrent - active);
+    const free = active?0:Math.min(1,Math.max(0,this.data.settings.maxConcurrent));
+    if(!free||this.admission?.workspaceBusy(this.cwd))return;
+    if(this.context&&this.admission&&this.data.tasks.some(t=>t.status==='queued')){const agents=await this.listAgents();const external=agents?.some(a=>a.cwd===this.cwd&&['working','running','blocked','waiting','busy'].includes(a.state??a.status));if(!agents||external){for(const task of this.data.tasks.filter(t=>t.status==='queued'))task.queueReason=!agents?'Canlı CLI durumu doğrulanamadı; güvenli başlangıç bekleniyor.':'Bu klasörde CLI işi var; bitmesi bekleniyor.';this.save();return;}}
     const next = this.data.tasks
       .filter((task) => task.status === 'queued')
       .sort((a, b) => {
@@ -218,7 +214,7 @@ export class TaskManager {
   }
 
   async launch(task) {
-    if (this.launching.has(task.id) || task.status !== 'queued') return;
+    if (this.launching.size || this.data.tasks.some(t=>['starting','running','waiting'].includes(t.status)) || task.status !== 'queued') return;
     if (this.admission && !this.admission.canLaunch(this,task)) return;
     this.launching.add(task.id);
     try { await this.launchReserved(task); }
@@ -235,7 +231,7 @@ export class TaskManager {
         if (task.workspaceId !== this.context.workspaceId || task.projectId !== this.context.projectId) throw new Error('Görev başka bir projeye ait.');
       } catch (error) { task.status='failed'; task.error=error.message; task.completedAt=Date.now(); this.save(); return; }
     }
-    task.status = 'starting';
+    delete task.queueReason;task.status = 'starting';
     task.stage = 'starting';
     task.startedAt = Date.now();
     this.event(task.id, 'started', `${task.role} oturumu başlatılıyor.`);
@@ -256,6 +252,7 @@ export class TaskManager {
       result = { code:-1, stdout:'', stderr:error.message };
     }
     const shortId = result.stdout.match(/backgrounded\s+·\s+([0-9a-f]{8})/i)?.[1];
+    if((result.timedOut||result.outputLimited)&&!TERMINAL_STATES.has(task.status)){task.sessionId=shortId??null;task.launchUnconfirmed=true;task.error='Başlatma sonucu doğrulanamadı. Aynı iş yeniden başlatılmadı; oturum envanteri kontrol ediliyor.';this.event(task.id,'starting',task.error);this.save();return;}
     if (TERMINAL_STATES.has(task.status)) {
       if (shortId && task.status !== 'stopped') { task.sessionId = shortId; this.save(); }
       if (shortId && task.status === 'stopped') {
@@ -300,6 +297,7 @@ export class TaskManager {
     this.context?.assertValid();
     if (this.context && task.workspaceId !== this.context.workspaceId) throw new Error('Görev başka bir projeye ait.');
     const result = await this.runCommand(this.claudePath, ['logs', task.sessionId], { cwd: this.cwd, env: this.env });
+    if(result.code!==0)throw Error('Görev çıktısı doğrulanamadı; sonraki kontrolde yeniden denenecek.');
     return cleanAnsi(result.stdout || result.stderr).slice(-20_000);
   }
 
@@ -322,15 +320,17 @@ export class TaskManager {
     if (agents) {
       for (const task of watched) {
         if (TERMINAL_STATES.has(task.status) || this.stopping?.has(task.id)) continue;
-        const agent = agents.find(item => (task.sessionId && (item.id === task.sessionId || item.sessionId === task.sessionId ||
-          (/^[0-9a-f]{8}$/i.test(task.sessionId) && String(item.sessionId ?? '').startsWith(task.sessionId + '-')))) || (task.sessionName && item.name === task.sessionName));
+        const matches=agents.filter(item=>task.sessionId&&(item.id===task.sessionId||item.sessionId===task.sessionId||(/^[0-9a-f]{8}$/i.test(task.sessionId)&&String(item.sessionId??'').startsWith(task.sessionId+'-'))));
+        const named=!matches.length&&task.sessionName?agents.filter(item=>item.name===task.sessionName):matches;
+        const agent=named.length===1?named[0]:null;
         if (!task.sessionId && agent && task.status === 'starting') {
           task.sessionId = agent.id || agent.sessionId;
           this.save(); // Recover a launch after a service restart using its unique name.
         }
         let next = stateFromAgent(agent);
         if (!next) continue; // Missing/unknown sessions cannot prove task success or failure.
-        const logs = await this.logs(task);
+        let logs;try{logs=await this.logs(task);}catch(error){task.error=error.message;this.save();continue;}
+        if(task.launchUnconfirmed){delete task.launchUnconfirmed;task.error='';}
         if (TERMINAL_STATES.has(task.status) || this.stopping?.has(task.id)) continue;
         const failure = claudeFailure(logs);
         if (failure) next = 'failed';
@@ -360,6 +360,7 @@ export class TaskManager {
     this.stopping ??= new Set();
     this.stopping.add(task.id);
     try {
+      if(task.launchUnconfirmed&&!task.sessionId){const agents=await this.listAgents();const found=agents?.filter(a=>a.name===task.sessionName);if(found?.length!==1)throw Error('Başlatılan oturum henüz doğrulanamadı. Envanter doğrulanmadan durduruldu olarak işaretlenmez.');task.sessionId=found[0].id??found[0].sessionId;}
       if (task.sessionId) {
         const result = await this.runCommand(this.claudePath, ['stop', task.sessionId], { cwd: this.cwd, env: this.env });
         if (result.code !== 0) throw new Error(cleanAnsi(result.stderr || result.stdout || 'Claude oturumu durdurulamadı.'));

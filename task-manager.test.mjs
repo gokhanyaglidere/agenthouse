@@ -80,10 +80,10 @@ test('failed CLI stop does not pretend a running job was stopped',async()=>{
  const task=job();const m=fixture([task],async()=>({code:1,stdout:'',stderr:'cannot stop'}));
  await assert.rejects(m.stopTask(task.id),/cannot stop/);assert.equal(task.status,'running');
 });
-test('an inflight start uses one concurrency slot, not two',async()=>{
+test('an inflight start keeps the workspace reserved until it finishes',async()=>{
  const starting=job({status:'starting',sessionId:null});const queued=job({id:'b',status:'queued',sessionId:null});const another=job({id:'c',status:'queued',sessionId:null});
  const m=fixture([starting,queued,another]);m.launching.add(starting.id);const seen=[];m.launch=async t=>seen.push(t.id);
- await m.schedule();assert.deepEqual(seen,['b','c']);
+ await m.schedule();assert.deepEqual(seen,[]);
 });
 test('polls coalesce and cannot overwrite a stop while awaiting logs',async()=>{
  const task=job(),pending=deferred();const m=fixture([task]);m.schedule=async()=>{};
@@ -137,3 +137,14 @@ test('stop-in-progress flags never enter persisted task data',async()=>{
 });
 
 test('notifications retain the status snapshot and distinct event identity across fast transitions',async()=>{const manager=Object.create(TaskManager.prototype);manager.save=()=>{};const delivered=[];manager.onNotice=snapshot=>delivered.push(snapshot);const task={id:'probe',status:'waiting'};manager.notice(task,'İzin');task.status='running';manager.notice({...task,status:'waiting'},'Yeni izin');await Promise.resolve();assert.equal(delivered[0].status,'waiting');assert.notEqual(delivered[0].noticeId,delivered[1].noticeId);});
+
+test('unconfirmed launch recovers only unique evidence without relaunching',async()=>{
+ const task=job({status:'queued',sessionId:null});const m=fixture([task],async()=>({code:-1,stdout:'',stderr:'timeout',timedOut:true}));
+ await m.launchReserved(task);assert.equal(task.status,'starting');assert.equal(task.launchUnconfirmed,true);
+ m.schedule=async()=>{};m.logs=async()=>'';m.listAgents=async()=>[{name:task.sessionName,id:'first',state:'working'},{name:task.sessionName,id:'second',state:'working'}];await m.tick();assert.equal(task.sessionId,null);
+ m.listAgents=async()=>[{name:task.sessionName,id:'confirmed',state:'working'}];await m.tick();assert.equal(task.sessionId,'confirmed');assert.equal(task.status,'running');assert.equal(task.launchUnconfirmed,undefined);
+});
+test('one failed logs query cannot block another task or later polls',async()=>{
+ const a=job(),b=job({id:'b',sessionId:'bbbbbbbb',sessionName:'b'}),m=fixture([a,b]);m.schedule=async()=>{};m.listAgents=async()=>[{id:'deadbeef',state:'done'},{id:'bbbbbbbb',state:'done'}];let offline=true;
+ m.logs=async t=>{if(t===a&&offline)throw Error('offline');return '';};await m.tick();assert.equal(a.status,'running');assert.equal(b.status,'completed');offline=false;await m.tick();assert.equal(a.status,'completed');
+});
