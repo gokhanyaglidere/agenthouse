@@ -1,8 +1,12 @@
+import {handPort} from '../sprites/cozyPoses.js';
+import {cozyProfile} from '../sprites/cozyCharacters.js';
+import {activityPhase} from './activityPhase.js';
 import type {Character,FurnitureInstance} from '../types.js';
 /** All coordinates are integer logical pixels; no real session telemetry is changed. */
 export function furnitureActivity(ctx:CanvasRenderingContext2D,f:FurnitureInstance,characters:Character[],x:number,y:number,z:number){
  if(!f.uid||!['BB_ARCADE','BB_POOL','BB_COFFEE_STATION','BB_DINING'].includes(f.type??''))return;
  const player=characters.find(c=>!c.isActive&&(c.ambientPause??0)>0&&c.ambientTarget?.furnitureUid===f.uid);if(!player||!f.uid)return;
+ if(f.type!=='BB_DINING'&&activityPhase(player)!=='act')return;
  const t=(player.ambientElapsed??0)%4;
  const pixel=(px:number,py:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.fillRect(Math.round(x+px*z),Math.round(y+py*z),w*z,h*z);};
  if(f.type==='BB_ARCADE'){
@@ -14,10 +18,11 @@ export function furnitureActivity(ctx:CanvasRenderingContext2D,f:FurnitureInstan
  }else if(f.type==='BB_DINING'){for(const guest of characters.filter(c=>!c.isActive&&(c.ambientPause??0)>0&&c.ambientTarget?.furnitureUid===f.uid&&c.ambientTarget?.activity==='meal')){const px=(guest.tileCol*16+8)-f.x;pixel(px-5,5,10,3,'#f0e5ce');pixel(px-3,5,3,2,'#d29b57');pixel(px+1,5,2,2,'#83a273');}}else if(f.type==='BB_COFFEE_STATION'&&(player.ambientElapsed??0)<2){pixel(20,27,2,5,'#815435');pixel(18,32,5,3,'#f2e8ce');}
 }
 export function playerActivity(ctx:CanvasRenderingContext2D,ch:Character,x:number,y:number,z:number){
- if(ch.isActive||(ch.ambientPause??0)<=0)return;
+ if(ch.isActive||(ch.ambientPause??0)<=0||activityPhase(ch)!=='act')return;
+ const skin=cozyProfile(ch.palette,ch.wardrobeRole).skin[0];
  const pixel=(px:number,py:number,w:number,h:number,color:string)=>{ctx.fillStyle=color;ctx.fillRect(Math.round(x+px*z),Math.round(y+py*z),w*z,h*z);};
- if(ch.ambientTarget?.activity==='pool'&&ch.ambientPartnerId===undefined){const t=(ch.ambientElapsed??0)%4;const stroke=t<1.6?Math.round(t):0;pixel(14+stroke,22,18,1,'#bb9a69');pixel(32+stroke,22,1,1,'#eee6d0');pixel(13+stroke,21,2,2,'#edbfa3');}
- if(ch.ambientTarget?.activity==='water'&&ch.ambientPartnerId===undefined){const phase=Math.floor((ch.ambientElapsed??0)/.5)%4;pixel(13,21,5,4,'#8ca5a1');pixel(14,19,3,1,'#58746e');pixel(18,22,4,1,'#8ca5a1');for(let i=0;i<3;i++)pixel(22+i,23+(i+phase)%4,1,1,'#a5d5df');}
- if(ch.ambientTarget?.activity==='pet'){const hand=Math.floor((ch.ambientElapsed??0)/.4)%2;const right=ch.dir===2;pixel(right?13:-2,25+hand,5,2,'#edbfa3');pixel(right?17:-3,27+hand,2,1,'#edbfa3');if((ch.ambientElapsed??0)>3){pixel(right?20+hand*2:-8-hand*2,30-hand*2,2,2,'#e3b265');}}
+ if(ch.ambientTarget?.activity==='pool'&&ch.ambientPartnerId===undefined){const port=handPort('pool',ch.ambientElapsed??0),stroke=port.x-14;pixel(14+stroke,22,18,1,'#bb9a69');pixel(32+stroke,22,1,1,'#eee6d0');pixel(13+stroke,21,2,2,skin);}
+ if(ch.ambientTarget?.activity==='water'&&ch.ambientPartnerId===undefined){const phase=Math.floor((ch.ambientElapsed??0)/.5)%4,port=handPort('water',ch.ambientElapsed??0);pixel(13,port.y+2,5,4,'#8ca5a1');pixel(14,port.y,3,1,'#58746e');pixel(18,port.y+3,4,1,'#8ca5a1');pixel(13,port.y,2,1,skin);for(let i=0;i<3;i++)pixel(22+i,port.y+4+(i+phase)%4,1,1,'#a5d5df');}
+ if(ch.ambientTarget?.activity==='pet'){const hand=handPort('pet',ch.ambientElapsed??0).y-27;const right=ch.dir===2;pixel(right?14:-4,27+hand,4,2,skin);pixel(right?18:-6,28+hand,2,1,skin);if((ch.ambientElapsed??0)>3){pixel(right?20+hand*2:-8-hand*2,30-hand*2,2,2,'#e3b265');}}
  if(ch.ambientPartnerId!==undefined){const speaking=(Math.floor((ch.ambientElapsed??0)/1.5)+ch.id)%2===0;if(!speaking)return;pixel(1,-9,12,7,'#49483e');pixel(2,-8,10,5,'#eee7cf');pixel(4,-3,2,2,'#eee7cf');for(let i=0;i<3;i++)pixel(4+i*3,-6,1,1,'#79785e');}
 }

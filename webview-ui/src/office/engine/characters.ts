@@ -1,3 +1,6 @@
+import {cozyPose} from '../sprites/cozyPoses.js';
+import {getCharacterStyle} from '../sprites/spriteData.js';
+import {activityPhase} from './activityPhase.js';
 import {activitySprite} from './ambientActivities.js';
 import {
   DEFAULT_MAX_CONTEXT_TOKENS,
@@ -353,8 +356,9 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       return sprites.walk[ch.dir][ch.frame % 4];
     case CharacterState.IDLE:
       if(!ch.isActive&&(ch.ambientPause??0)>0){
-        if(ch.ambientPartnerId!==undefined)return sprites.typing[ch.dir][Math.floor((ch.ambientElapsed??0)/.7)%2];
+        if(ch.ambientPartnerId!==undefined)return getCharacterStyle()==='cozy'?cozyPose(ch.palette,ch.dir,'talk',ch.ambientElapsed??0,ch.ambientTarget?.seated??false,'act',ch.wardrobeRole):sprites.typing[ch.dir][Math.floor((ch.ambientElapsed??0)/.7)%2];
         const kind=ch.ambientTarget?.activity;
+        if(kind&&getCharacterStyle()==='cozy'){const pose=kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2?'arcade':kind;const phase=activityPhase(ch),poseTime=phase==='finish'?.7-(ch.ambientPause??0):ch.ambientElapsed??0;const body=cozyPose(ch.palette,ch.dir,pose,poseTime,ch.ambientTarget?.seated??false,phase,ch.wardrobeRole);return ['coffee','read','bench','meal','eat','game','garden'].includes(pose)&&activityPhase(ch)==='act'?activitySprite(body,pose,ch.ambientElapsed??0,false,false):body;}
         if(kind==='arcade'||kind==='pool'||kind==='water'||kind==='pet'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
         if(kind)return activitySprite(sprites.walk[ch.dir][1],kind,ch.ambientElapsed??0,ch.ambientTarget?.seated??false);
       }

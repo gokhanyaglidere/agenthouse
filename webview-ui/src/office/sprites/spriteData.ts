@@ -1,4 +1,4 @@
-import {cozyFrame,COZY_CHARACTER_COUNT} from './cozyCharacters.js';
+import {cozyFrame,cozyProfile,COZY_CHARACTER_COUNT} from './cozyCharacters.js';
 import type { ColorValue } from '../../components/ui/types.js';
 import { PALETTE_COUNT } from '../../constants.js';
 import { adjustSprite } from '../colorize.js';
@@ -119,15 +119,15 @@ function emptySprite(w: number, h: number): SpriteData {
   return rows;
 }
 
-export function getCharacterSprites(paletteIndex: number, hueShift = 0): CharacterSprites {
-  const cacheKey = `${characterStyle}:${paletteIndex}:${hueShift}`;
+export function getCharacterSprites(paletteIndex: number, hueShift = 0,roleKey?:string): CharacterSprites {
+  const cacheKey = `${characterStyle}:${paletteIndex}:${hueShift}:${characterStyle==='cozy'?cozyProfile(paletteIndex,roleKey).family+':'+(roleKey??''):''}`;
   const cached = spriteCache.get(cacheKey);
   if (cached) return cached;
 
   let sprites: CharacterSprites;
 
   if (characterStyle==='cozy') {
-    const frames=(dir:'down'|'up'|'right')=>Array.from({length:7},(_,i)=>cozyFrame(paletteIndex,dir,i));
+    const frames=(dir:'down'|'up'|'right')=>Array.from({length:7},(_,i)=>cozyFrame(paletteIndex,dir,i,roleKey));
     const d=frames('down'),u=frames('up'),rt=frames('right'),flip=flipSpriteHorizontal;
     sprites={walk:{[Dir.DOWN]:[d[0],d[1],d[2],d[1]],[Dir.UP]:[u[0],u[1],u[2],u[1]],[Dir.RIGHT]:[rt[0],rt[1],rt[2],rt[1]],[Dir.LEFT]:[flip(rt[0]),flip(rt[1]),flip(rt[2]),flip(rt[1])]},typing:{[Dir.DOWN]:[d[3],d[4]],[Dir.UP]:[u[3],u[4]],[Dir.RIGHT]:[rt[3],rt[4]],[Dir.LEFT]:[flip(rt[3]),flip(rt[4])]},reading:{[Dir.DOWN]:[d[5],d[6]],[Dir.UP]:[u[5],u[6]],[Dir.RIGHT]:[rt[5],rt[6]],[Dir.LEFT]:[flip(rt[5]),flip(rt[6])]}};
   } else if (loadedCharacters) {

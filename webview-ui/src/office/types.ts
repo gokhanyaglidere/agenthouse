@@ -254,6 +254,7 @@ export interface Character {
   teamName?: string;
   /** Role name within the team (null for lead) */
   agentName?: string;
+  wardrobeRole?:string;
   workBadge?: string;
   workColor?: string;
   workName?: string;
