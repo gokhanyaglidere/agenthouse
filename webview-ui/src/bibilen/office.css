@@ -472,3 +472,10 @@ div:has(>.bb-shell .bb-session-focus)>.bb-native-tool{visibility:hidden}
 .bb-menu-items button:focus-visible{outline-offset:-3px}.bb-session-list article{min-width:0}.bb-session-list h2{overflow-wrap:anywhere}
 
 .bb-task-connection{margin-bottom:16px;color:var(--muted);font-size:13px}.bb-task-connection>summary{min-height:44px}.bb-task-connection[open]{padding-bottom:12px;border-bottom:1px solid var(--line)}
+
+.bb-management{display:flex;flex-direction:column;width:min(900px,100%);max-height:calc(100dvh - 32px)}.bb-management-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.bb-management-tabs button[aria-pressed=true]{background:var(--blue);color:white}.bb-management-content{overflow:auto;min-height:0;overscroll-behavior:contain}.bb-management-content article,.bb-result-package{border:1px solid var(--line);padding:16px;border-radius:14px;margin:12px 0}.bb-management-content article button{margin:4px}.bb-health-list{display:grid;grid-template-columns:1fr 2fr;gap:12px}.bb-health-list dt{color:var(--muted)}.bb-health-list dd{margin:0;overflow-wrap:anywhere}.bb-policy-toggle{display:flex;gap:12px;align-items:center}.bb-policy-toggle input{width:20px;min-height:20px}.bb-result-package header{display:flex;justify-content:space-between;align-items:center;gap:12px}.bb-result-package code{overflow-wrap:anywhere}.bb-result-package h4{margin:20px 0 8px}
+@media(max-width:580px){.bb-management-tabs{display:grid;grid-template-columns:1fr 1fr}.bb-health-list{grid-template-columns:1fr}.bb-health-list dd{margin-bottom:12px}.bb-result-package header{align-items:flex-start;flex-direction:column}}
+/* Dialogs must cover the masthead, including on narrow viewports. */
+.bb-modal-backdrop,.bb-drawer-backdrop{z-index:60}
+.bb-management>header,.bb-management-tabs{flex-shrink:0}
+.bb-composer .bb-policy-toggle{display:flex;align-items:center}.bb-composer .bb-policy-toggle input{width:20px;min-height:20px;flex-shrink:0}

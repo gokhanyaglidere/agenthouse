@@ -36,6 +36,15 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  assert.equal((await request('state',{workspace:bid})).body.context.workspaceId,bid);
  assert.equal((await request('state?workspaceId='+aid,{workspace:bid})).status,400);
  assert.equal((await request('state',{workspace:'unknown'})).status,400);
+ const paused=await request('project-policy',{workspace:aid,body:{allowNewWork:false}});assert.equal(paused.status,200);assert.equal(paused.body.allowNewWork,false);
+ assert.equal((await request('tasks',{workspace:aid,body:{title:'Blocked task',prompt:'Must not execute',role:'chief'}})).status,400);
+ assert.equal((await request('sessions',{workspace:aid,body:{title:'Blocked session',role:'chief'}})).status,400);
+ assert.equal((await request('project-policy',{workspace:bid})).body.allowNewWork,true);
+ assert.equal((await request('state',{workspace:aid})).body.tasks.length,1);
+ const viewerPolicy=await request('project-policy',{workspace:aid,body:{allowNewWork:true},headers:{host:'office.example',origin:'https://office.example','tailscale-user-login':'viewer@example.com'}});assert.equal(viewerPolicy.status,403);
+ assert.equal((await request('project-policy',{workspace:aid})).body.allowNewWork,false);
+ await request('project-policy',{workspace:aid,body:{allowNewWork:true}});
+
  assert.equal((await request('roles',{workspace:bid})).body.legacy,false);
  await request('notifications/test',{workspace:aid,body:{}});await request('notifications/test',{workspace:bid,body:{}});
  const own=(await request('notifications',{workspace:bid})).body.items;assert.ok(own.length);assert.ok(own.every(n=>n.workspaceId===bid));

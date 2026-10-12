@@ -1,3 +1,4 @@
+import {ProjectPolicy} from './project-policy.mjs';
 import {StateBackup} from './state-backup.mjs';
 import {SessionCatalog} from './session-catalog.mjs';
 import {installProjectProfiles} from './project-onboarding.mjs';
@@ -78,7 +79,7 @@ function getRuntime(workspaceId){
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,
+ const runtime={context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy:new ProjectPolicy(scopedPath('project-policy')),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),
@@ -226,6 +227,7 @@ async function handleApi(req,res,url){
       sendJson(res,operator?200:403,{ok:operator});return true;
     }
     if(!operator&&req.method!=='GET'){sendJson(res,403,{error:'İzleyici erişiminde komut ve ayar değişikliği yapılamaz.'});return true;}
+    if(url.pathname==='/bibilen/api/project-policy'){if(!operator){sendJson(res,403,{error:'Proje izinlerini yalnızca yönetici görebilir.'});return true;}sendJson(res,200,req.method==='POST'?runtime.policy.update(await readJson(req)):runtime.policy.state());return true;}
     if(req.method==='GET'&&url.pathname==='/bibilen/api/work/overview'){sendJson(res,200,await workTracker.overview());return true;}
     const changesMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/changes$/);
     if(req.method==='GET'&&changesMatch){sendJson(res,200,await sessionChanges(cwd,await workTracker.get(changesMatch[1])));return true;}
@@ -239,6 +241,7 @@ async function handleApi(req,res,url){
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/sessions'){sendJson(res,200,await sessionManager.list());return true;}
     if(req.method==='POST'&&url.pathname==='/bibilen/api/sessions'){
+      runtime.policy.assertNewWork();
       if(executionHealth.state.status==='blocked'){sendJson(res,409,{error:executionHealth.state.message});return true;}
       sendJson(res,201,{session:sessionManager.create(await readJson(req))});return true;
     }
@@ -258,6 +261,7 @@ async function handleApi(req,res,url){
       sendJson(res,200,{execution:await executionHealth.check()});return true;
     }
     if(req.method==='POST'&&url.pathname==='/bibilen/api/tasks'){
+      runtime.policy.assertNewWork();
       if(executionHealth.state.status==='blocked'){sendJson(res,409,{error:executionHealth.state.message});return true;}
       const task=taskManager.create(await readJson(req));sendJson(res,201,{task});return true;
     }

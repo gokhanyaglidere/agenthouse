@@ -88,3 +88,6 @@ export async function downloadBackup(){
  const url=URL.createObjectURL(new Blob([JSON.stringify(archive)],{type:'application/json'}));
  const link=document.createElement('a');link.href=url;link.download=`agent-house-backup-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
+
+export const getProjectPolicy=()=>request<{allowNewWork:boolean;updatedAt:number|null}>('project-policy');
+export const updateProjectPolicy=(allowNewWork:boolean)=>request<{allowNewWork:boolean;updatedAt:number|null}>('project-policy',{method:'POST',body:JSON.stringify({allowNewWork})});
