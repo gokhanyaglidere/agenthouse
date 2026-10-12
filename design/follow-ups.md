@@ -64,3 +64,10 @@ All eight reproduced findings are addressed. See [remediation and operational
 boundaries](gap-fixes-2026-10-12.md) for implementation, regression checks and
 remaining external-process/device boundaries. The original review remains
 historical evidence.
+
+## Project-native teams and Windows hosts — planned 2026-10-12
+
+See [implementation plan](project-native-teams-plan-2026-10-12.md). New projects
+must discover their own agent/skill definitions, refresh them live and show the
+correct team without copying a shared roster. Local discovery is the first stage;
+Windows/WSL host connection, cross-host notifications and sharing acceptance follow.
