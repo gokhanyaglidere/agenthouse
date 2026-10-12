@@ -99,8 +99,9 @@ export function updateCharacter(
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
   peers: Iterable<Character> = [],
+  stations:NonNullable<Character['ambientTarget']>[]=SOCIAL_VISITS,
 ): void {
-  if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;}
+  if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.ambientPartnerId=undefined;ch.ambientChatTimer=0;}
   if (ch.seatId === 'seat-chief' || ch.privateOffice) {
     const inside = insideCeo;
     walkableTiles = walkableTiles.filter(t => inside(t.col,t.row));
@@ -133,7 +134,7 @@ export function updateCharacter(
     }
 
     case CharacterState.IDLE: {
-      if((ch.ambientPause??0)>0){ch.ambientPause=Math.max(0,(ch.ambientPause??0)-dt);ch.ambientElapsed=(ch.ambientElapsed??0)+dt;ch.frame=Math.floor(ch.ambientElapsed/.7)%2;break;}
+      if((ch.ambientPause??0)>0){ch.ambientPause=Math.max(0,(ch.ambientPause??0)-dt);ch.ambientElapsed=(ch.ambientElapsed??0)+dt;ch.frame=Math.floor(ch.ambientElapsed/.7)%2;if(ch.ambientPartnerId===undefined)ch.dir=ch.ambientTarget?.activity==='coffee'&&ch.ambientElapsed>2?Direction.DOWN:ch.ambientTarget?.facing??Direction.DOWN;break;}
       if(ch.ambientTarget&&ch.path.length===0)ch.ambientTarget=undefined;
       // No idle animation — static pose
       ch.frame = 0;
@@ -203,10 +204,10 @@ export function updateCharacter(
           const occupied:Array<{col:number;row:number}>=[];
           for(const other of peers){if(other.id===ch.id||other.sessionHidden)continue;occupied.push({col:other.tileCol,row:other.tileRow});const end=other.ambientTarget??other.path.at(-1);if(end)occupied.push(end);}
           const free=(t:{col:number;row:number})=>!blockedTiles.has(`${t.col},${t.row}`)&&!occupied.some(o=>Math.abs(o.col-t.col)+Math.abs(o.row-t.row)<2);
-          const social=SOCIAL_VISITS.filter(free);
+          const social=stations.filter(free);
           const available=walkableTiles.filter(free);
           if(!available.length){ch.wanderTimer=2;break;}
-          const visit=ch.seatId!=='seat-chief'&&!ch.privateOffice&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&social.length>0&&Math.random()<.65?social[Math.floor(Math.random()*social.length)]:undefined;
+          const visit=ch.seatId!=='seat-chief'&&!ch.privateOffice&&tileMap.length===COZY_ROWS&&tileMap[0]?.length===COZY_COLS&&social.length>0?social[Math.floor(Math.random()*social.length)]:undefined;
           const target = visit??available[Math.floor(Math.random() * available.length)];
           const path = findPath(
             ch.tileCol,
@@ -259,7 +260,7 @@ export function updateCharacter(
           }
         } else {
           if(ch.ambientTarget&&ch.tileCol===ch.ambientTarget.col&&ch.tileRow===ch.ambientTarget.row){
-            ch.state=CharacterState.IDLE;ch.ambientPause=randomRange(15,35);ch.ambientElapsed=0;ch.dir=Direction.DOWN;ch.frame=0;ch.frameTimer=0;break;
+            ch.state=CharacterState.IDLE;ch.ambientPause=randomRange(15,35);ch.ambientElapsed=0;ch.dir=ch.ambientTarget.facing??Direction.DOWN;ch.frame=0;ch.frameTimer=0;break;
           }
           // Check if arrived at assigned seat — sit down for a rest before wandering again
           if (ch.seatId) {
@@ -351,7 +352,12 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
     case CharacterState.WALK:
       return sprites.walk[ch.dir][ch.frame % 4];
     case CharacterState.IDLE:
-      if(!ch.isActive&&(ch.ambientPause??0)>0&&ch.ambientTarget?.activity)return activitySprite(sprites.walk[ch.dir][1],ch.ambientTarget.activity,ch.ambientElapsed??0);
+      if(!ch.isActive&&(ch.ambientPause??0)>0){
+        if(ch.ambientPartnerId!==undefined)return sprites.typing[ch.dir][Math.floor((ch.ambientElapsed??0)/.7)%2];
+        const kind=ch.ambientTarget?.activity;
+        if(kind==='arcade'||kind==='pool'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
+        if(kind)return activitySprite(sprites.walk[ch.dir][1],kind,ch.ambientElapsed??0);
+      }
       return sprites.walk[ch.dir][1];
     default:
       return sprites.walk[ch.dir][1];

@@ -57,6 +57,8 @@ export interface Seat {
 }
 
 export interface FurnitureInstance {
+  uid?:string;
+  type?:string;
   sprite: SpriteData;
   /** Pixel x (top-left) */
   x: number;
@@ -199,8 +201,10 @@ export interface Character {
   /** Timer for idle wander decisions */
   wanderTimer: number;
   /** Visual-only social visit; never marks a Claude session as working. */
-  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'};
+  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool';furnitureUid?:string;facing?:Direction;offsetX?:number;offsetY?:number};
   ambientElapsed?: number;
+  ambientPartnerId?:number;
+  ambientChatTimer?:number;
   ambientPause?: number;
   /** Number of wander moves completed in current roaming cycle */
   wanderCount: number;

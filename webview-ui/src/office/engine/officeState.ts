@@ -1,3 +1,4 @@
+import {socialStations,updateSocialPairs} from './socialStations.js';
 import { pickDiversePalette } from '../../../../core/src/paletteUtils.js';
 import { insideCeo, COZY_REVISION } from '../../bibilen/layouts.js';
 import {
@@ -1112,11 +1113,12 @@ export class OfficeState {
     }
 
     // Repair old shared destinations after upgrades; the remaining visitors reroute.
+    const stations=socialStations(this.layout);
     const claimed=new Set<string>();
     for(const ch of this.characters.values()){
       if(!ch.ambientTarget||ch.sessionHidden)continue;
       const key=`${ch.ambientTarget.col},${ch.ambientTarget.row}`;
-      if(claimed.has(key)){ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.path=[];ch.moveProgress=0;ch.x=ch.tileCol*TILE_SIZE+TILE_SIZE/2;ch.y=ch.tileRow*TILE_SIZE+TILE_SIZE/2;ch.state=CharacterState.IDLE;ch.wanderTimer=0;}
+      if(claimed.has(key)||ch.ambientTarget.furnitureUid&&!stations.some(s=>s.furnitureUid===ch.ambientTarget!.furnitureUid&&s.col===ch.ambientTarget!.col&&s.row===ch.ambientTarget!.row)){ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.path=[];ch.moveProgress=0;ch.x=ch.tileCol*TILE_SIZE+TILE_SIZE/2;ch.y=ch.tileRow*TILE_SIZE+TILE_SIZE/2;ch.state=CharacterState.IDLE;ch.wanderTimer=0;}
       else claimed.add(key);
     }
     const toDelete: number[] = [];
@@ -1129,7 +1131,7 @@ export class OfficeState {
 
       // Temporarily unblock own seat so character can pathfind to it
       this.withOwnSeatUnblocked(ch, () =>
-        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, this.characters.values()),
+        updateCharacter(ch, dt, this.walkableTiles, this.seats, this.tileMap, this.blockedTiles, this.characters.values(),stations),
       );
 
       // Tick bubble timer for waiting bubbles
@@ -1146,6 +1148,7 @@ export class OfficeState {
       this.characters.delete(id);
     }
 
+    updateSocialPairs(this.characters.values(),dt);
     // ── Pet FSM ────────────────────────────────────────────────
     for (const pet of this.pets) {
       updatePet(pet, dt, this.walkableTiles, this.characters, this.tileMap, this.blockedTiles);

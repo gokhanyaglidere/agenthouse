@@ -1,3 +1,4 @@
+import {furnitureActivity,playerActivity} from './furnitureActivities.js';
 import {renderCozyLighting} from '../../bibilen/cozyLighting.js';
 import {treeSway,renderDoors,renderWildlife} from '../../bibilen/environment.js';
 import type { ColorValue } from '../../components/ui/types.js';
@@ -386,6 +387,7 @@ export function renderScene(
         zY: f.zY,
         draw: (c) => {
           treeSway(c,cached,f.sprite,fx,fy,zoom);
+          furnitureActivity(c,f,characters,fx,fy,zoom);
         },
       });
     }
@@ -399,8 +401,8 @@ export function renderScene(
     // Sitting offset: shift character down when seated so they visually sit in the chair
     const sittingOffset = ch.state === CharacterState.TYPE ? CHARACTER_SITTING_OFFSET_PX : 0;
     // Anchor at bottom-center of character — round to integer device pixels
-    const drawX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
-    const drawY = Math.round(offsetY + (ch.y + sittingOffset) * zoom - cached.height);
+    const drawX = Math.round(offsetX + (ch.x+(!ch.isActive&&(ch.ambientPause??0)>0?ch.ambientTarget?.offsetX??0:0)) * zoom - cached.width / 2);
+    const drawY = Math.round(offsetY + (ch.y + sittingOffset+(!ch.isActive&&(ch.ambientPause??0)>0?ch.ambientTarget?.offsetY??0:0)) * zoom - cached.height);
 
     // Sort characters by bottom of their tile (not center) so they render
     // in front of same-row furniture (e.g. chairs) but behind furniture
@@ -454,11 +456,13 @@ export function renderScene(
       draw: (c) => {
         if (alpha === 1) {
           c.drawImage(cached, drawX, drawY);
+          playerActivity(c,ch,drawX,drawY,zoom);
           return;
         }
         c.save();
         c.globalAlpha = alpha;
         c.drawImage(cached, drawX, drawY);
+        playerActivity(c,ch,drawX,drawY,zoom);
         c.restore();
       },
     });
@@ -797,7 +801,7 @@ function renderBubbles(
     // Character is anchored bottom-center at (ch.x, ch.y), sprite is 16x24
     // Place bubble above head with a small gap; follow sitting offset
     const sittingOff = ch.state === CharacterState.TYPE ? BUBBLE_SITTING_OFFSET_PX : 0;
-    const bubbleX = Math.round(offsetX + ch.x * zoom - cached.width / 2);
+    const bubbleX = Math.round(offsetX + (ch.x+(!ch.isActive&&(ch.ambientPause??0)>0?ch.ambientTarget?.offsetX??0:0)) * zoom - cached.width / 2);
     const bubbleY = Math.round(
       offsetY + (ch.y + sittingOff - BUBBLE_VERTICAL_OFFSET_PX) * zoom - cached.height - 1 * zoom,
     );

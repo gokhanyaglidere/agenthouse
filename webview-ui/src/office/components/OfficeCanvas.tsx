@@ -322,7 +322,7 @@ export function OfficeCanvas({
           if(line)lines.push(line);
           const width = Math.max(...lines.map(text=>ctx.measureText(text).width)) + labelSize;
           const height=lines.length*labelSize*1.3+labelSize*.4;
-          const caption=ch.workBadge??(ch.ambientTarget&&!ch.isActive?((ch.ambientPause??0)>0?ch.ambientTarget.label:'Molaya gidiyor'):null);
+          const caption=ch.workBadge??(ch.ambientTarget&&!ch.isActive?((ch.ambientPause??0)>0?(ch.ambientPartnerId!==undefined?'Sohbet ediyor · görsel':ch.ambientTarget.activity==='coffee'&&ch.ambientTarget.furnitureUid&&(ch.ambientElapsed??0)>2?'Kahve içiyor':ch.ambientTarget.label):'Molaya gidiyor'):null);
           const totalWidth=Math.max(width,caption?ctx.measureText(caption).width+labelSize:0);
           const box=placeLabel(anchorX,anchorY,totalWidth,height+(caption?labelSize*1.7:0),canvas,labelBoxes);labelBoxes.push(box);
           const x=box.x+box.width/2,y=box.y+height;
@@ -333,7 +333,7 @@ export function OfficeCanvas({
           lines.forEach((text,i)=>ctx.fillText(text,x,y-height+labelSize*.8+i*labelSize*1.3));
           if(ch.workBadge){const badgeWidth=ctx.measureText(ch.workBadge).width+labelSize;ctx.fillStyle=ch.workColor??'#8dd6b2';ctx.fillRect(x-badgeWidth/2,y+labelSize*.1,badgeWidth,labelSize*1.5);ctx.fillStyle='#142238';ctx.fillText(ch.workBadge,x,y+labelSize*.8);}
           else if(ch.ambientTarget&&!ch.isActive){
-            const caption=(ch.ambientPause??0)>0?ch.ambientTarget.label:'Molaya gidiyor';
+            const caption=(ch.ambientPause??0)>0?(ch.ambientPartnerId!==undefined?'Sohbet ediyor · görsel':ch.ambientTarget.activity==='coffee'&&ch.ambientTarget.furnitureUid&&(ch.ambientElapsed??0)>2?'Kahve içiyor':ch.ambientTarget.label):'Molaya gidiyor';
             const w=ctx.measureText(caption).width+labelSize;
             ctx.fillStyle='#e8d9b8ed';ctx.fillRect(x-w/2,y+labelSize*.1,w,labelSize*1.5);
             ctx.fillStyle='#405541';ctx.fillText(caption,x,y+labelSize*.8);

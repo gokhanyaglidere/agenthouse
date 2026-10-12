@@ -119,10 +119,12 @@ it('uses installed furniture and lets idle characters walk with the native engin
    expect(findPath(seat.seatCol,seat.seatRow,HALL_HUB.col,HALL_HUB.row,office.tileMap,office.blockedTiles).length,`${role.key} can reach the shared hallway`).toBeGreaterThan(0);
   }
   let moved=false;
-  let sawSocialVisit=false;
+  let sawSocialVisit=false;let interruptedVisit=false;
   for(let i=0;i<2400;i++){
    office.update(0.1);
    sawSocialVisit ||= [...office.characters.values()].some(c=>(c.ambientPause??0)>0);
+   const visiting=[...office.characters.values()].find(c=>c.ambientTarget);
+   if(visiting&&!interruptedVisit){office.setAgentActive(visiting.id,true);office.update(.1);expect(visiting.ambientTarget).toBeUndefined();expect(visiting.ambientPause).toBe(0);office.setAgentActive(visiting.id,false);interruptedVisit=true;}
    moved ||= [...office.characters.values()].some(c=>{const start=positions.get(c.id);return start&&(c.x!==start[0]||c.y!==start[1]);});
    const chief=office.characters.get(residentId(0))!;
    expect(chief.tileCol).toBeGreaterThanOrEqual(CEO_ROOM.left);
@@ -133,11 +135,7 @@ it('uses installed furniture and lets idle characters walk with the native engin
   }
   expect(moved).toBe(true);
   expect(sawSocialVisit).toBe(true);
-  const visitor=[...office.characters.values()].find(c=>c.ambientTarget);
-  expect(visitor).toBeDefined();
-  office.setAgentActive(visitor!.id,true);office.update(.1);
-  expect(visitor!.ambientTarget).toBeUndefined();expect(visitor!.ambientPause).toBe(0);
-  office.setAgentActive(visitor!.id,false);
+  expect(interruptedVisit).toBe(true);
   expect([...office.characters.values()].every(c=>!c.isActive)).toBe(true);
  }
 },20000);

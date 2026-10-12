@@ -1,5 +1,5 @@
 import type {SpriteData} from '../types.js';
-export type AmbientActivity='coffee'|'read'|'garden'|'game'|'eat';
+export type AmbientActivity='coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool';
 const cache=new WeakMap<SpriteData,Map<string,SpriteData>>();
 /** Four bounded pixel poses, cached per source frame. Decorative only. */
 export function activitySprite(base:SpriteData,kind:AmbientActivity,elapsed:number):SpriteData{
