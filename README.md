@@ -397,3 +397,19 @@ Slack authorization and an actual second-project acceptance run remain follow-up
 ### Readability and placement refinement — 2026-10-11
 Conversation readers render Markdown headings, lists, code and horizontally scrollable tables without raw HTML execution. Notification settings collapse so recent notices are immediately visible. Mobile action groups, filter selection and narrow work cards share consistent wrapping and touch sizing.
 Layout revision 116 moves the default finance printer beside the archive. Revision 115 migrates only that default position and preserves owner furniture; an occupied destination is left unchanged. Native terminal inputs retain their own sizing and typography.
+
+### Task delivery and project context — 2026-10-12
+
+- **Görevler → Proje özeti**: watched conversations, required replies and the
+  latest three task deliveries, scoped to the selected project.
+- **Geçmiş → Teslimi incele**: readable recorded final response, edited-file
+  evidence, test exit records, unresolved work and suggested next step.
+- **Ekip → Ajan iş yükü**: filter by running, waiting, queued or ready-for-message
+  state. Missing connections do not establish that a role is free elsewhere.
+- **Yeni görev → Görev şablonları**: investigation, review, implementation,
+  planning and content drafts; explicit application, never automatic submission.
+- **Geçmiş**: filter/search task records and search visible conversation messages.
+  Message search is operator-only, project-scoped and paginated. Open a hit's
+  conversation to read its history; deep message jumping is not implemented.
+
+See [verification and search limits](design/task-experience-2026-10-12.md).

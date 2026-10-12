@@ -31,6 +31,12 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  const sa=await request('sessions',{workspace:aid,body:{title:'Only A',role:'chief',workspaceId:bid}});assert.equal(sa.status,201,output);
  assert.equal((await request('sessions',{workspace:bid})).body.sessions.length,0);
  assert.equal((await request(`sessions/${sa.body.session.id}/transcript`,{workspace:bid})).status,400);
+ const transcriptRoot=join(home,'.claude','projects',realpathSync(a).replace(/[^a-zA-Z0-9]/g,'-'));mkdirSync(transcriptRoot,{recursive:true});
+ writeFileSync(join(transcriptRoot,sa.body.session.id+'.jsonl'),JSON.stringify({type:'user',uuid:'search-proof',cwd:a,message:{content:'scoped search evidence'},timestamp:new Date().toISOString()})+'\n');
+ const searchA=await request('conversation-search?q=scoped%20search',{workspace:aid});assert.equal(searchA.status,200);assert.equal(searchA.body.matches[0].sessionId,sa.body.session.id);
+ const searchB=await request('conversation-search?q=scoped%20search',{workspace:bid});assert.equal(searchB.status,200);assert.equal(searchB.body.matches.length,0);
+ assert.equal((await request('conversation-search?q=scoped',{workspace:aid,headers:{host:'office.example',origin:'https://office.example','tailscale-user-login':'viewer@example.com'}})).status,403);
+
  const task=await request('tasks',{workspace:aid,body:{title:'Only A task',prompt:'Fixture instruction',role:'chief',workspaceId:bid}});assert.equal(task.status,201);assert.equal(task.body.task.workspaceId,aid);
  assert.equal((await request('state',{workspace:bid})).body.tasks.length,0);
  assert.equal((await request('state',{workspace:bid})).body.context.workspaceId,bid);

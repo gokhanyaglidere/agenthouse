@@ -10,3 +10,9 @@ test('highlights required answers while counting separate concurrent sessions',(
  expect(result.state).toBe('waiting');expect(result.title).toBe('b');expect(result.sessions).toBe(2);
  expect(roleActivity('web-frontend',[],[group('a',true,'running')]).sessions).toBe(0);
 });
+test('counts distinct linked work without duplicating a task and its session, prioritizes waiting',()=>{
+ const tasks=[{id:'a',role:'chief',status:'queued',sessionId:null},{id:'b',role:'chief',status:'waiting',sessionId:'active'}] as import('./types.js').BibilenTask[];
+ const result=roleActivity('chief',tasks,[group('active',true,'waiting'),group('past',false,'running')]);
+ expect(result.jobs).toBe(2);expect(result.queued).toBe(1);expect(result.state).toBe('waiting');
+ expect(roleActivity('chief',tasks,[]).state).toBe('waiting');
+});

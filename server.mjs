@@ -1,3 +1,4 @@
+import {searchConversations} from './conversation-search.mjs';
 import {SkillCatalog} from './skill-catalog.mjs';
 import {ToolGuard} from './tool-guard.mjs';
 import {ProjectPolicy} from './project-policy.mjs';
@@ -247,6 +248,10 @@ async function handleApi(req,res,url){
       const task=taskManager.get(taskWorkMatch[1]);if(!task){sendJson(res,404,{error:'Görev bulunamadı.'});return true;}
       const inventory=await sessionManager.list();const session=inventory.sessions.find(s=>s.taskId===task.id);
       sendJson(res,200,{task,trace:session?await workTracker.trace(session):null,events:taskManager.data.events.filter(e=>e.taskId===task.id).slice(0,40)});return true;
+    }
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/conversation-search'){
+      if(!operator){sendJson(res,403,{error:'Konuşma aramasını yalnızca yönetici kullanabilir.'});return true;}
+      sendJson(res,200,await searchConversations(sessionManager,{query:url.searchParams.get('q'),cursor:url.searchParams.get('cursor')}));return true;
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/sessions'){sendJson(res,200,await sessionManager.list());return true;}
     if(req.method==='POST'&&url.pathname==='/bibilen/api/sessions'){

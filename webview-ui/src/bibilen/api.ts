@@ -100,3 +100,6 @@ export const decideApproval=(id:string,decision:'allow'|'deny')=>request<{ok:boo
 export interface SkillChoice{id:string;name:string;source:string}
 export const getSkillCatalog=()=>request<{skills:SkillChoice[]}>('skills');
 export const getSkillInstruction=(id:string)=>request<SkillChoice&{body:string}>(`skills/${encodeURIComponent(id)}`);
+
+export interface ConversationSearchResult {matches:Array<{sessionId:string;title:string;messageId:string;role:string;timestamp:string|null;excerpt:string}>;nextCursor:string|null;pages:number;unreadableSessions:number;totalSessions:number;inventoryAvailable:boolean}
+export const searchConversations=(query:string,cursor?:string)=>request<ConversationSearchResult>(`conversation-search?q=${encodeURIComponent(query)}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`);
