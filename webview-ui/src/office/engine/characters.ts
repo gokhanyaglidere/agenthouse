@@ -101,7 +101,7 @@ export function updateCharacter(
   peers: Iterable<Character> = [],
   stations:NonNullable<Character['ambientTarget']>[]=SOCIAL_VISITS,
 ): void {
-  if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.ambientPartnerId=undefined;ch.ambientChatTimer=0;}
+  if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.ambientPartnerId=undefined;ch.ambientChatTimer=0;ch.ambientPetId=undefined;}
   if (ch.seatId === 'seat-chief' || ch.privateOffice) {
     const inside = insideCeo;
     walkableTiles = walkableTiles.filter(t => inside(t.col,t.row));
@@ -355,7 +355,7 @@ export function getCharacterSprite(ch: Character, sprites: CharacterSprites): Sp
       if(!ch.isActive&&(ch.ambientPause??0)>0){
         if(ch.ambientPartnerId!==undefined)return sprites.typing[ch.dir][Math.floor((ch.ambientElapsed??0)/.7)%2];
         const kind=ch.ambientTarget?.activity;
-        if(kind==='arcade'||kind==='pool'||kind==='water'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
+        if(kind==='arcade'||kind==='pool'||kind==='water'||kind==='pet'||kind==='coffee'&&ch.ambientTarget?.furnitureUid&&(ch.ambientElapsed??0)<2)return sprites.typing[ch.dir][ch.frame%2];
         if(kind)return activitySprite(sprites.walk[ch.dir][1],kind,ch.ambientElapsed??0,ch.ambientTarget?.seated??false);
       }
       return sprites.walk[ch.dir][1];

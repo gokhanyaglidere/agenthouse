@@ -1,3 +1,4 @@
+import {updatePetPlay} from './petPlay.js';
 import {socialStations,updateSocialPairs} from './socialStations.js';
 import { pickDiversePalette } from '../../../../core/src/paletteUtils.js';
 import { insideCeo, COZY_REVISION } from '../../bibilen/layouts.js';
@@ -953,7 +954,11 @@ export class OfficeState {
     if (this.pets.some((p) => p.id === placedPet.id)) return; // de-dupe
     if (this.walkableTiles.length === 0) return; // no spawn space — silently drop
 
-    const spawn = this.walkableTiles[Math.floor(Math.random() * this.walkableTiles.length)];
+    const outside=this.walkableTiles.filter(t=>!insideCeo(t.col,t.row));
+    const available=outside.length?outside:this.walkableTiles;
+    const garden=placedPet.id==='agent-house-cat'?available.filter(t=>Math.abs(t.col-53)+Math.abs(t.row-68)<=3):[];
+    const positions=garden.length?garden:available;
+    const spawn = positions[Math.floor(Math.random() * positions.length)];
     const pet = createPet(placedPet.id, placedPet.petType, spawn.col, spawn.row);
     pet.name = getPetName(placedPet.petType);
     this.pets.push(pet);
@@ -1149,6 +1154,7 @@ export class OfficeState {
     }
 
     updateSocialPairs(this.characters.values(),dt);
+    updatePetPlay(this.pets,this.characters,dt,this.tileMap,this.blockedTiles);
     // ── Pet FSM ────────────────────────────────────────────────
     for (const pet of this.pets) {
       updatePet(pet, dt, this.walkableTiles, this.characters, this.tileMap, this.blockedTiles);

@@ -174,6 +174,7 @@ export function updatePet(
   tileMap: TileTypeVal[][],
   blockedTiles: Set<string>,
 ): void {
+  if(pet.playAgentId!==undefined){updateIdleAnimation(pet,dt);return;}
   switch (pet.state) {
     case PetState.IDLE: {
       updateIdleAnimation(pet, dt);

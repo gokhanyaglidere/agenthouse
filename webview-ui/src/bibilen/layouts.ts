@@ -3,7 +3,7 @@ import {ROSTER} from './roster.js';
 import {getPlacementBlockedTiles} from '../office/layout/layoutSerializer.js';
 
 export type Theme='studio'|'night'|'garden';
-export const COZY_REVISION=120;
+export const COZY_REVISION=121;
 export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
  const printer=layout.furniture.find(f=>f.uid==='finance-printer');
  let furniture=layout.furniture;
@@ -49,7 +49,8 @@ export function refineSavedLayout(layout:OfficeLayout):OfficeLayout{
   }
  }
  if((layout.layoutRevision??0)>=115&&(layout.layoutRevision??0)<118)return refineSavedLayout({...layout,furniture,layoutRevision:layout.layoutRevision!+1});
- return {...layout,furniture,layoutRevision:COZY_REVISION};
+ const pets=(layout.layoutRevision??0)<121&&layout.pets?.length&&!layout.pets.some(p=>p.id==='agent-house-cat')?[...layout.pets,{id:'agent-house-cat',petType:1}]:layout.pets;
+ return {...layout,furniture,pets,layoutRevision:COZY_REVISION};
 }
 export const COZY_COLS=77,COZY_ROWS=77;
 export interface Bounds {left:number;right:number;top:number;bottom:number}
@@ -218,5 +219,5 @@ export function makeLayout(theme:Theme):OfficeLayout {
  }
  return {version:1,cols:COZY_COLS,rows:COZY_ROWS,tiles,furniture,layoutRevision:COZY_REVISION,
   tileColors:tiles.map(t=>t===0?{h:38,s:25,b:25,c:0,colorize:true}:{h:34,s:35,b:15,c:0,colorize:true}),
-  pets:[{id:'bibilen-mascot',petType:0}],areas:COZY_ROOMS.map(r=>({label:r.label,color:r.color})),areaTiles};
+  pets:[{id:'bibilen-mascot',petType:0},{id:'agent-house-cat',petType:1}],areas:COZY_ROOMS.map(r=>({label:r.label,color:r.color})),areaTiles};
 }

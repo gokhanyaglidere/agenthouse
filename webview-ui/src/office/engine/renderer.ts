@@ -477,7 +477,7 @@ export function renderScene(
     const cached = getCachedSprite(spriteData, zoom);
     // Anchor at bottom-center at (pet.x, pet.y) — round to integer device pixels
     const drawX = Math.round(offsetX + pet.x * zoom - cached.width / 2);
-    const drawY = Math.round(offsetY + pet.y * zoom - cached.height);
+    const drawY = Math.round(offsetY + pet.y * zoom - cached.height - (pet.playStarted&&(pet.playTimer??6)<3?Math.floor((pet.playTimer??0)*4)%2*zoom:0));
 
     // Z-sort key: matches the chair/character "row boundary" formula.
     // pet.y is the pixel center, so + TILE_SIZE/2 lifts us to the row's bottom edge.
@@ -813,7 +813,7 @@ function renderBubbles(
   }
 }
 
-function renderPetBubbles(
+export function renderPetBubbles(
   ctx: CanvasRenderingContext2D,
   pets: Pet[],
   offsetX: number,

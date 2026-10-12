@@ -201,9 +201,10 @@ export interface Character {
   /** Timer for idle wander decisions */
   wanderTimer: number;
   /** Visual-only social visit; never marks a Claude session as working. */
-  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool'|'meal'|'bench'|'water';furnitureUid?:string;facing?:Direction;offsetX?:number;offsetY?:number;seatUid?:string;seated?:boolean};
+  ambientTarget?: {col:number;row:number;label:string;activity?:'coffee'|'read'|'garden'|'game'|'eat'|'arcade'|'pool'|'meal'|'bench'|'water'|'pet';furnitureUid?:string;facing?:Direction;offsetX?:number;offsetY?:number;seatUid?:string;seated?:boolean};
   ambientElapsed?: number;
   ambientPartnerId?:number;
+  ambientPetId?:string;
   ambientChatTimer?:number;
   ambientPause?: number;
   /** Number of wander moves completed in current roaming cycle */
@@ -276,6 +277,10 @@ export type PetState = (typeof PetState)[keyof typeof PetState];
 
 /** Runtime pet (mutated by FSM tick). */
 export interface Pet {
+  playAgentId?:number;
+  playTimer?:number;
+  playStarted?:boolean;
+  playCooldown?:number;
   /** Stable identifier; matches PlacedPet.id in the layout. */
   id: string;
   /** Display name from sprite manifest (e.g. "Claudio", "Gitcat"). */

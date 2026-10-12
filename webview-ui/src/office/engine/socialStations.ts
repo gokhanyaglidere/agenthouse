@@ -26,7 +26,7 @@ export function socialStations(layout:OfficeLayout):Visit[]{
 /** Small decorative conversations, never Claude messages or recorded delegations. */
 export function updateSocialPairs(characters:Iterable<Character>,dt:number){
  const all=[...characters],byId=new Map(all.map(c=>[c.id,c]));
- const available=(c:Character)=>!c.isActive&&!c.sessionHidden&&!c.privateOffice&&!(c.ambientTarget?.furnitureUid&&c.ambientTarget.activity==='coffee'&&(c.ambientElapsed??0)<2)&&c.state==='idle'&&(c.ambientPause??0)>0&&!['arcade','pool','water','meal'].includes(c.ambientTarget?.activity??'');
+ const available=(c:Character)=>!c.ambientPetId&&!c.isActive&&!c.sessionHidden&&!c.privateOffice&&!(c.ambientTarget?.furnitureUid&&c.ambientTarget.activity==='coffee'&&(c.ambientElapsed??0)<2)&&c.state==='idle'&&(c.ambientPause??0)>0&&!['arcade','pool','water','meal'].includes(c.ambientTarget?.activity??'');
  for(const c of all){if(c.ambientPartnerId===undefined)continue;const partner=byId.get(c.ambientPartnerId);c.ambientChatTimer=Math.max(0,(c.ambientChatTimer??0)-dt);if(!partner||!available(c)||!available(partner)||partner.ambientPartnerId!==c.id||!c.ambientChatTimer){c.ambientPartnerId=undefined;c.ambientChatTimer=0;}}
  for(const c of all){if(!available(c)||c.ambientPartnerId!==undefined||Math.random()>dt*.18)continue;const partner=all.find(p=>p.id!==c.id&&available(p)&&p.ambientPartnerId===undefined&&Math.abs(p.tileCol-c.tileCol)+Math.abs(p.tileRow-c.tileRow)<=3);
   if(!partner)continue;c.ambientPartnerId=partner.id;partner.ambientPartnerId=c.id;c.ambientChatTimer=partner.ambientChatTimer=5+Math.random()*4;
