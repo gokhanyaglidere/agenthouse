@@ -227,9 +227,10 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   const cx=Math.round(x+(room.left+room.right+1)*8*zoom),cy=Math.round(y+(room.top*16-7)*zoom);
   const width=Math.ceil(Math.max(...lines.map(line=>ctx.measureText(line).width)))+12*dpr,height=lines.length*fontSize*1.15+6*dpr;
   if(cx+width/2<0||cx-width/2>ctx.canvas.width||cy+height/2<0||cy-height/2>ctx.canvas.height)continue;
-  ctx.fillStyle='#614831';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
-  ctx.fillStyle='#eadcba';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
-  ctx.fillStyle='#354c36';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
+  ctx.fillStyle='#405a48';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
+  ctx.fillStyle='#f0e6cc';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
+  ctx.fillStyle=room.locked?'#b68c4b':'#7da68a';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),3*dpr,height);
+  ctx.fillStyle='#263d2e';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
  }
  ctx.restore();
  if(motionEnabled()){
