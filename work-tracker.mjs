@@ -101,7 +101,7 @@ export class WorkTracker{
   if(!state||replaced){state=this.fresh(session.id);state.inode=stat?.ino;state.header=stat?header(rootPath):null;this.cache.set(session.id,state);if(this.cache.size>20)this.cache.delete(this.cache.keys().next().value);}
   const lead=state.members.get('lead');lead.role=session.role??'chief';lead.label=session.title;lead.status=['completed','failed','stopped'].includes(session.taskStatus)?session.taskStatus:['working','busy','running'].includes(session.activity)?'running':['blocked','idle','waiting'].includes(session.activity)?'waiting':'unknown';
   await this.read(state,rootPath,'lead');
-  const dir=join(this.sessions.root,session.id,'subagents');
+  const dir=join(this.sessions.rootFor?.(session.id)??this.sessions.root,session.id,'subagents');
   const metas=existsSync(dir)?readdirSync(dir).filter(f=>/^agent-[a-zA-Z0-9_-]+\.meta\.json$/.test(f)):[];
   // Metadata provides exact tool-use identity, including nested delegations.
   for(let pass=0;pass<4;pass++){

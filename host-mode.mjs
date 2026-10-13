@@ -1,9 +1,10 @@
+import {createWindowsInventory} from './windows-inventory.mjs';
 // Host-side admission for a remote execution host (e.g. WSL2). The host runs the normal gateway bound to
 // 127.0.0.1; in host mode EVERY request must carry a valid signed envelope from the central gateway.
 // The guard re-validates scope and permission locally, de-duplicates commands and rejects work while
 // the sandbox prerequisites are missing. It never trusts Tailscale identity headers.
-import {readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync, realpathSync, existsSync} from 'node:fs';
-import {dirname, sep, resolve} from 'node:path';
+import {readFileSync, writeFileSync, renameSync, mkdirSync, realpathSync, existsSync, statSync} from 'node:fs';
+import {dirname, join, sep, resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {HEADERS, NonceCache, verify, sha256, helloProof} from './host-protocol.mjs';
@@ -16,7 +17,20 @@ const UNSCOPED_ALLOWED = new Set(['POST /bibilen/api/projects', 'GET /bibilen/ap
 export function loadHostCredential(path) {
   const c = JSON.parse(readFileSync(path, 'utf8'));
   if (!c.hostId || !c.secret || c.secret.length < 32 || !Array.isArray(c.allowedRoots)) throw new Error('Host credential file is incomplete.');
-  return {hostId: c.hostId, secret: c.secret, allowedRoots: c.allowedRoots.map(r => realpathSync(r)), accountLabel: c.accountLabel ?? ''};
+  // Optional read-only mirror of the Windows Claude transcripts; configured by file or, to keep user-specific paths out of it, by env.
+  const wcp = c.windowsClaudeProjects ?? process.env.AGENT_HOUSE_WINDOWS_CLAUDE_PROJECTS;
+  const windowsClaudeProjects = typeof wcp === 'string' && existsSync(wcp) ? realpathSync(wcp) : null;
+  return {hostId: c.hostId, secret: c.secret, allowedRoots: c.allowedRoots.map(r => realpathSync(r)), accountLabel: c.accountLabel ?? '', windowsClaudeProjects};
+}
+
+// Transcript folder of the Windows Claude for a project that lives on a Windows drive (/mnt/d/X -> <projects>/D--X). Read-only.
+export function windowsTranscriptRoot(windowsClaudeProjects, cwd) {
+  const m = /^\/mnt\/([a-z])(\/.*)?$/.exec(cwd ?? '');
+  if (!windowsClaudeProjects || !m) return null;
+  const winPath = m[1].toUpperCase() + ':' + (m[2] ?? '\\').replace(/\//g, '\\');
+  let base;try{base=realpathSync(windowsClaudeProjects);}catch{return null;}
+  const dir = join(base, winPath.replace(/[^a-zA-Z0-9]/g, '-'));
+  try {const real = realpathSync(dir); return under(base, real) && statSync(real).isDirectory() ? real : null;} catch {return null;}
 }
 
 export const under = (root, candidate) => candidate === root || candidate.startsWith(root.endsWith(sep) ? root : root + sep);
@@ -73,6 +87,7 @@ function deny(res, status, code, extra = {}) {
 const STATUS = {missing_envelope: 401, bad_envelope: 401, bad_signature: 401, body_mismatch: 401, expired: 401, replayed: 401, wrong_host: 403, role_not_allowed: 403, bad_command_id: 400, bad_workspace: 400, bad_actor: 400};
 
 export function createHostGuard({credential, port, bootId = randomUUID(), ledger, nonces = new NonceCache(), workspaces, inventoryRevision, preflight, version = '1', now = Date.now, log = () => {}}) {
+  const windowsInventory=createWindowsInventory({projectsRoot:credential.windowsClaudeProjects});
   const internalHost = `127.0.0.1:${port}`;
   const workspaceInfo = () => workspaces().filter(w => rootAllowed(credential.allowedRoots, w.root));
   const allowedWorkspace = id => workspaceInfo().some(w => w.id === id);
@@ -113,7 +128,7 @@ export function createHostGuard({credential, port, bootId = randomUUID(), ledger
   }
 
   return {
-    bootId, ledger,
+    bootId, ledger, windowsAgentsFor: async cwd => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)?windowsInventory?.(cwd)??null:[], windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
     // Wrap the gateway's request listener.
     wrap(listener) {
       return async (req, res) => {

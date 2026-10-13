@@ -14,7 +14,7 @@ export interface CommandState {
 }
 export interface ExecutionStatus {status:'unchecked'|'ready'|'blocked'|'unavailable';message:string;checkedAt:number|null}
 export type CommandView='office'|'operations'|'tasks'|'team'|'sessions'|'history';
-export interface ClaudeSession {id:string;title:string;role:string|null;createdAt:number;updatedAt:number;status:'open'|'background'|'external'|'history'|'new';canOpen:boolean;canStop?:boolean;hasTranscript:boolean;taskId:string|null;taskTitle:string|null;taskStatus:string|null;note:string|null}
+export interface ClaudeSession {origin?:'windows'|'host';id:string;title:string;role:string|null;createdAt:number;updatedAt:number;status:'open'|'background'|'external'|'history'|'new';canOpen:boolean;canStop?:boolean;hasTranscript:boolean;taskId:string|null;taskTitle:string|null;taskStatus:string|null;note:string|null}
 export interface ConversationMessage {id:string;role:'user'|'assistant';text:string;tools:string[];timestamp:string|null}
 export type WorkStatus='assigned'|'running'|'waiting'|'reported'|'completed'|'failed'|'stopped'|'unknown';
 export interface WorkMember {id:string;parentId:string|null;role:string|null;label:string;agentId?:string;status:WorkStatus;liveState?:'running'|'waiting'|'idle'|'closed'|null;instruction:string;summary:string;lastTool:string|null;file:string|null;updatedAt:string|null}

@@ -3,3 +3,8 @@ const id='12345678-1234-4234-8234-123456789012';const manager={cwd:'/project',pa
 test('recovery includes only verified live sessions with transcripts, never stopped/history or malformed identities',()=>{const agents=[{sessionId:id,kind:'interactive',pid:42,status:'busy'},{sessionId:'bad',status:'busy'},{sessionId:id,state:'done'},{sessionId:id,state:'stopped'}];assert.deepEqual(presenceInventory({available:true,agents},manager,checks),[{sessionId:id,transcriptPath:`/project/history/${id}.jsonl`,cwd:'/project'}]);});
 test('an unavailable inventory cannot remove existing office characters',()=>{assert.equal(presenceInventory({available:false,agents:[]},manager,checks),null);});
 test('dead interactive processes and missing transcripts cannot create office occupants',()=>{const inventory={available:true,agents:[{sessionId:id,kind:'interactive',pid:42,status:'idle'}]};assert.deepEqual(presenceInventory(inventory,manager,{...checks,alive:()=>false}),[]);assert.deepEqual(presenceInventory(inventory,manager,{...checks,hasFile:()=>false}),[]);});
+test('Windows process ids are validated on Windows, never against unrelated WSL pids',()=>{
+ const agent={sessionId:id,kind:'interactive',pid:42,state:'busy',origin:'windows',nativeAlive:true};
+ assert.equal(presenceInventory({available:true,agents:[agent]},manager,{...checks,alive:()=>false}).length,1);
+ assert.deepEqual(presenceInventory({available:true,agents:[{...agent,nativeAlive:false}]},manager,checks),[]);
+});

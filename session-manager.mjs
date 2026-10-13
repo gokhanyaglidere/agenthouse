@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,chmodSync,readdirSync,statSync,lstatSync,realpathSync,openSync,readSync,closeSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
+const localPath=p=>{const m=/^([A-Za-z]):[\\/](.*)$/.exec(String(p??''));return m&&process.platform==='linux'?'/mnt/'+m[1].toLowerCase()+'/'+m[2].replace(/\\/g,'/'):p;};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE=new Set(['working','running','blocked','busy','idle','waiting']);
 export function validSessionId(id){return typeof id==='string'&&UUID.test(id);}
@@ -26,19 +27,23 @@ function stopExternalCli(agent){
  process.kill(agent.pid,'SIGTERM');
 }
 export class SessionManager{
- constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles,memoryPrompt=()=>''}){
+ constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,extraRoots=[],storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles,memoryPrompt=()=>''}){
   this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
   this.root=root??join(homedir(),'.claude','projects',this.cwd.replace(/[^a-zA-Z0-9]/g,'-'));
+  // Read-only transcript folders written by another machine OS (e.g. Windows Claude seen from WSL). Never written, never resumed.
+  this.roots=[this.root,...extraRoots.map(r=>resolve(r))];
   this.storePath=storePath??context?.sessionStorePath??join(homedir(),'.pixel-agents','bibilen-sessions.json');
   try{this.saved=JSON.parse(readFileSync(this.storePath,'utf8')).sessions??{};}catch{this.saved={};}
   this.restoreTerminals=restoreTerminals;this.restored=false;this.restoreFlight=null;
   this.live=new Map();this.cache=new Map();this.opening=new Set();
  }
  save(){mkdirSync(resolve(this.storePath,'..'),{recursive:true});const tmp=this.storePath+'.tmp';writeFileSync(tmp,JSON.stringify({version:1,sessions:this.saved}),{mode:0o600});renameSync(tmp,this.storePath);chmodSync(this.storePath,0o600);}
- path(id){if(!validSessionId(id))throw new Error('Geçersiz oturum kimliği.');return join(this.root,id+'.jsonl');}
+ rootFor(id){for(const root of this.roots)if(existsSync(join(root,id+'.jsonl')))return root;return this.root;}
+ isExternal(id){return validSessionId(id)&&this.rootFor(id)!==this.root;}
+ path(id){if(!validSessionId(id))throw new Error('Geçersiz oturum kimliği.');return join(this.rootFor(id),id+'.jsonl');}
  fileInfo(id){
   const path=this.path(id);if(!existsSync(path))return null;const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink())throw Error('Oturum kaydı doğrulanamadı.');
-  const cache=this.cache.get(id);if(cache?.mtime===stat.mtimeMs&&cache.size===stat.size)return cache.info;
+  const cache=this.cache.get(id);if(cache?.path===path&&cache.mtime===stat.mtimeMs&&cache.size===stat.size)return cache.info;
   const head=parseLines(sliceFile(path,0,Math.min(65536,stat.size)));
   const tail=parseLines(sliceFile(path,Math.max(0,stat.size-65536),Math.min(65536,stat.size)));
   const records=[...head,...tail];
@@ -46,11 +51,11 @@ export class SessionManager{
   const user=head.map(conversationEntry).find(r=>r?.role==='user'&&!/^<|^Another Claude session sent a message:/i.test(r.text));
   const title=String(titleRow?.customTitle??titleRow?.aiTitle??user?.text??`Claude konuşması · ${id.slice(0,8)}`).replace(/\s+/g,' ').slice(0,120);
   const info={id,title,cwd:records.find(r=>typeof r.cwd==='string')?.cwd??null,createdAt:stat.birthtimeMs||stat.mtimeMs,updatedAt:stat.mtimeMs,hasTranscript:true};
-  this.cache.set(id,{mtime:stat.mtimeMs,size:stat.size,info});return info;
+  this.cache.set(id,{path,mtime:stat.mtimeMs,size:stat.size,info});return info;
  }
  scoped(info){
   if(this.discoveryReadOnly)return true;
-  if(info?.cwd){const canonical=p=>{try{return realpathSync(p);}catch{return resolve(p);}};return canonical(info.cwd)===canonical(this.cwd);}
+  if(info?.cwd){const canonical=p=>{p=localPath(p);try{return realpathSync(p);}catch{return resolve(p);}};return canonical(info.cwd)===canonical(this.cwd);}
   const saved=this.saved[info?.id];return !!saved&&(!this.context||saved.workspaceId===this.context.workspaceId||this.context.legacy&&!saved.workspaceId);
  }
  assertTranscript(id){const info=this.fileInfo(id);if(!info||!this.scoped(info))throw Error('Oturum kaydı bu projeye ait değil veya proje kimliği doğrulanamadı.');return info;}
@@ -62,7 +67,7 @@ export class SessionManager{
   // /clear and /resume change the session UUID inside the same owned CLI process.
   for(const [id,live]of [...this.live]){
    if(live.background||!Number.isInteger(live.terminal.pid)||live.terminal.pid<=0)continue;
-   const agent=scoped.find(a=>a.pid===live.terminal.pid);
+   const agent=scoped.find(a=>a.origin!=='windows'&&a.pid===live.terminal.pid);
    if(!agent||agent.sessionId===id||this.live.has(agent.sessionId))continue;
    this.live.delete(id);live.id=agent.sessionId;this.live.set(live.id,live);
    this.saved[live.id]={...this.saved[id],...this.saved[live.id],title:this.saved[live.id]?.title??agent.name??this.saved[id]?.title??'Claude konuşması',createdAt:this.saved[live.id]?.createdAt??Date.now(),updatedAt:Date.now()};this.save();
@@ -72,7 +77,7 @@ export class SessionManager{
  }
  async list(){
   const inventory=await this.inventory();const result=new Map(),blocked=new Set();
-  if(existsSync(this.root))for(const filename of readdirSync(this.root)){const id=filename.replace(/\.jsonl$/,'');if(!filename.endsWith('.jsonl')||!validSessionId(id))continue;try{const info=this.fileInfo(id);if(info&&this.scoped(info))result.set(id,info);else blocked.add(id);}catch{blocked.add(id);}}
+  for(const root of this.roots)if(existsSync(root))for(const filename of readdirSync(root)){const id=filename.replace(/\.jsonl$/,'');if(!filename.endsWith('.jsonl')||!validSessionId(id))continue;if(root!==this.root&&result.has(id))continue;try{const info=this.fileInfo(id);if(info&&this.scoped(info))result.set(id,info);else blocked.add(id);}catch{blocked.add(id);}}
   for(const [id,saved]of Object.entries(this.saved))if(validSessionId(id)&&!blocked.has(id))result.set(id,{...result.get(id),...saved,id,updatedAt:Math.max(saved.updatedAt??0,result.get(id)?.updatedAt??0),hasTranscript:existsSync(this.path(id))});
   for(const agent of inventory.agents){const id=agent.sessionId;if(blocked.has(id))continue;result.set(id,{id,title:agent.name||'Claude konuşması',createdAt:agent.startedAt,updatedAt:agent.startedAt,...result.get(id),agent});}
   return {inventoryAvailable:inventory.available,sessions:[...result.values()].map(item=>{
@@ -80,11 +85,11 @@ export class SessionManager{
    const active=!!own||(agent&&(ACTIVE.has(agent.state)||ACTIVE.has(agent.status)));
    const background=agent?.kind==='background';
    const task=this.tasks().find(t=>t.sessionId&&(t.sessionId===item.id||item.id.startsWith(t.sessionId+'-')));
-   const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
+   const ext=this.isExternal(item.id);const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
    return {id:item.id,title:task?.title??item.title,role:item.role??task?.role??null,createdAt:item.createdAt,updatedAt:item.updatedAt,status,activity:agent?.state??agent?.status??(own?'open':'unknown'),
-    canOpen:!!own||!!background||(!active&&inventory.available),canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
+    canOpen:!ext&&(!!own||!!background||(!active&&inventory.available)),canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
     taskId:task?.id??null,taskTitle:task?.title??null,taskStatus:task?.status??null,
-    note:status==='external'?'Başka bir terminalde açık. Geçmişini okuyabilirsin; devam etmek için önce o terminalde oturumu kapat.':!inventory.available&&!own?'Aktif oturumlar doğrulanamadı. Yenileyip tekrar dene.':null};
+    origin:ext?'windows':'host',note:ext?(!inventory.available?'Windows canlı durumu doğrulanamadı; bu kayıt yalnızca izlenebilir.':'Windows oturumu: Mac panelinden yalnızca izlenebilir. Devam etmek için Windows tarafında aç.'):status==='external'?'Başka bir terminalde açık. Geçmişini okuyabilirsin; devam etmek için önce o terminalde oturumu kapat.':!inventory.available&&!own?'Aktif oturumlar doğrulanamadı. Yenileyip tekrar dene.':null};
   }).sort((a,b)=>b.updatedAt-a.updatedAt)};
  }
  create(input){
@@ -108,6 +113,7 @@ export class SessionManager{
   return {messages:recent.map(r=>r.entry),nextBefore:next>0?next:null};
  }
  async takeover(id){
+  if(this.isExternal(id))throw Error('Windows oturumu yalnızca izlenebilir.');
   this.context?.assertValid();this.path(id);
   if(this.transferring.has(id)||this.opening.has(id))throw new Error('Oturum zaten devralınıyor.');
   this.transferring.add(id);
@@ -126,6 +132,7 @@ export class SessionManager{
   }finally{this.transferring.delete(id);}
  }
  async connect(id,ws,{blocked=false}={}){
+  if(this.isExternal(id))throw Error('Windows oturumu yalnızca izlenebilir.');
   if(this.discoveryReadOnly)throw Error('Keşfedilen geçmişten oturum başlatılamaz.');
   this.context?.assertValid();
   if(this.opening.has(id))throw new Error('Oturum bağlanıyor. Biraz sonra tekrar dene.');

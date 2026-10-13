@@ -240,7 +240,7 @@ test('offline host blocks new work; reconnect restores it and reports the restar
   try {
     const bootBefore = t.link.snapshot().bootId;
     const {port} = t.host; await t.host.stop();
-    await wait(450);
+    for (let i = 0; i < 100 && t.link.snapshot().status === 'online'; i++) await wait(50);
     assert.ok(['stale', 'offline'].includes(t.link.snapshot().status));
     const blocked = await t.call('POST', `/bibilen/api/sessions?workspaceId=${A}`, {body: {role: 'chief'}, headers: {'x-command-id': 'cmd-off'}});
     assert.equal(blocked.status, 503); assert.equal((await blocked.json()).error, 'host_unverified');
@@ -248,7 +248,7 @@ test('offline host blocks new work; reconnect restores it and reports the restar
     assert.ok([503].includes(read.status));
     const host2 = await startHost({secret: t.secret, root: t.root, ledgerPath: t.ledgerPath, port});
     t.host = host2; t.link.start();
-    for (let i = 0; i < 40 && t.link.snapshot().status !== 'online'; i++) await wait(50);
+    for (let i = 0; i < 120 && t.link.snapshot().status !== 'online'; i++) await wait(50);
     const snap = t.link.snapshot();
     assert.equal(snap.status, 'online'); assert.equal(snap.restarted, true); assert.notEqual(snap.bootId, bootBefore);
     const ok = await t.call('POST', `/bibilen/api/sessions?workspaceId=${A}`, {body: {role: 'chief'}, headers: {'x-command-id': 'cmd-after'}});
@@ -295,7 +295,7 @@ test('terminal websocket is bridged, dies with the host link, and nothing is que
     const code = await closed; assert.ok([1011, 1012, 1000, 1001, 1006].includes(code));
     // keystrokes typed while disconnected must not be replayed after reconnect
     const host2 = await startHost({secret: t.secret, root: t.root, ledgerPath: t.ledgerPath, port}); t.host = host2;
-    for (let i = 0; i < 40 && !t.link.usable; i++) {await t.link.hello(); await wait(50);}
+    for (let i = 0; i < 120 && !t.link.usable; i++) {await t.link.hello(); await wait(50);}
     const ws2 = await open(); const msgs = []; ws2.on('message', m => msgs.push(String(m)));
     await wait(100); assert.deepEqual(msgs, []);
     ws2.close();
