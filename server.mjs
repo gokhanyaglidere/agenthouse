@@ -101,7 +101,7 @@ function getRuntime(workspaceId){
   admission.reserve(key,context.cwd);
   try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
- const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
+ const sessionManager=new SessionManager({cwd:context.cwd,context,extraRoots:[hostGuard?.windowsRootFor(context.cwd)].filter(Boolean),allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});

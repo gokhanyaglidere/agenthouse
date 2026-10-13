@@ -2,8 +2,8 @@
 // 127.0.0.1; in host mode EVERY request must carry a valid signed envelope from the central gateway.
 // The guard re-validates scope and permission locally, de-duplicates commands and rejects work while
 // the sandbox prerequisites are missing. It never trusts Tailscale identity headers.
-import {readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync, realpathSync, existsSync} from 'node:fs';
-import {dirname, sep, resolve} from 'node:path';
+import {readFileSync, writeFileSync, renameSync, mkdirSync, realpathSync, existsSync, statSync} from 'node:fs';
+import {dirname, join, sep, resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {HEADERS, NonceCache, verify, sha256, helloProof} from './host-protocol.mjs';
@@ -16,7 +16,17 @@ const UNSCOPED_ALLOWED = new Set(['POST /bibilen/api/projects', 'GET /bibilen/ap
 export function loadHostCredential(path) {
   const c = JSON.parse(readFileSync(path, 'utf8'));
   if (!c.hostId || !c.secret || c.secret.length < 32 || !Array.isArray(c.allowedRoots)) throw new Error('Host credential file is incomplete.');
-  return {hostId: c.hostId, secret: c.secret, allowedRoots: c.allowedRoots.map(r => realpathSync(r)), accountLabel: c.accountLabel ?? ''};
+  const windowsClaudeProjects = typeof c.windowsClaudeProjects === 'string' && existsSync(c.windowsClaudeProjects) ? realpathSync(c.windowsClaudeProjects) : null;
+  return {hostId: c.hostId, secret: c.secret, allowedRoots: c.allowedRoots.map(r => realpathSync(r)), accountLabel: c.accountLabel ?? '', windowsClaudeProjects};
+}
+
+// Transcript folder of the Windows Claude for a project that lives on a Windows drive (/mnt/d/X -> <projects>/D--X). Read-only.
+export function windowsTranscriptRoot(windowsClaudeProjects, cwd) {
+  const m = /^\/mnt\/([a-z])(\/.*)?$/.exec(cwd ?? '');
+  if (!windowsClaudeProjects || !m) return null;
+  const winPath = m[1].toUpperCase() + ':' + (m[2] ?? '\\').replace(/\//g, '\\');
+  const dir = join(windowsClaudeProjects, winPath.replace(/[^a-zA-Z0-9]/g, '-'));
+  try {const real = realpathSync(dir); return under(windowsClaudeProjects, real) && statSync(real).isDirectory() ? real : null;} catch {return null;}
 }
 
 export const under = (root, candidate) => candidate === root || candidate.startsWith(root.endsWith(sep) ? root : root + sep);
@@ -113,7 +123,7 @@ export function createHostGuard({credential, port, bootId = randomUUID(), ledger
   }
 
   return {
-    bootId, ledger,
+    bootId, ledger, windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
     // Wrap the gateway's request listener.
     wrap(listener) {
       return async (req, res) => {
