@@ -104,7 +104,7 @@ export const getSkillInstruction=(id:string)=>request<SkillChoice&{body:string}>
 export interface ConversationSearchResult {matches:Array<{sessionId:string;title:string;messageId:string;role:string;timestamp:string|null;excerpt:string}>;nextCursor:string|null;pages:number;unreadableSessions:number;totalSessions:number;inventoryAvailable:boolean}
 export const searchConversations=(query:string,cursor?:string)=>request<ConversationSearchResult>(`conversation-search?q=${encodeURIComponent(query)}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`);
 
-export interface SharingState{error:string|null;grants:Array<{id:string;login:string;name:string;expiresAt:number;active:boolean}>;items:Array<{id:string;kind:'task'|'session';sourceId:string;workspaceId:string;title:string;summary:string;updatedAt:number}>;audit:Array<{id:string;actor:string;action:string;at:number}>}
+export interface SharingState{webAccess?:{enabled:boolean;origin:string|null};error:string|null;grants:Array<{id:string;login:string;name:string;expiresAt:number;active:boolean}>;items:Array<{id:string;kind:'task'|'session';sourceId:string;workspaceId:string;title:string;summary:string;updatedAt:number}>;audit:Array<{id:string;actor:string;action:string;at:number}>}
 export const getSharing=()=>request<SharingState>('sharing');
 export const grantObserver=(input:{login:string;name:string;days:number})=>request<SharingState>('sharing/grants',{method:'POST',body:JSON.stringify(input)});
 export const revokeObserver=(id:string)=>request<SharingState>(`sharing/grants/${encodeURIComponent(id)}/revoke`,{method:'POST',body:'{}'});

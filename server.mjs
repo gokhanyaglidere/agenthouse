@@ -1,3 +1,4 @@
+import {verifiedWebViewer,observerPrincipal,webObserverConfig,createWebObserverServer} from './web-observer.mjs';
 import {ProjectContext} from './project-context.mjs';
 import {ProjectCapabilities} from './project-capabilities.mjs';
 import {resolveSession} from './session-identity.mjs';
@@ -52,6 +53,8 @@ process.env.PATH=`/opt/homebrew/bin:/usr/local/bin:${process.env.PATH??'/usr/bin
 const claudePath=process.env.BIBILEN_CLAUDE_PATH??(existsSync('/opt/homebrew/bin/claude')?'/opt/homebrew/bin/claude':'claude');
 const executionHealth=new ExecutionHealth(claudePath,join(homedir(),'.pixel-agents','bibilen-execution-health.json'));
 const accessPolicy=new AccessPolicy();
+let viewerConfig=null;try{viewerConfig=webObserverConfig();}catch{console.error('Web viewer configuration invalid; web access disabled.');}
+const webViewerState={enabled:!!viewerConfig,origin:viewerConfig?.origin??null};
 const observerSharing=new ObserverSharing(join(homedir(),'.pixel-agents','agent-house-sharing.json'));
 const accountPush=new PushManager();
 const stateBackup=new StateBackup(join(homedir(),'.pixel-agents'));
@@ -196,13 +199,13 @@ function readJson(req){return new Promise((resolveBody,reject)=>{
   req.on('error',reject);
 });}
 function observerProjects(req){
- const owner=accessPolicy.canWrite(req.headers),login=accessPolicy.identity(req.headers);
+ const {owner,login}=observerPrincipal(req,accessPolicy);
  const allowed=projects.data.projects.filter(p=>owner||observerSharing.allowed(login,p.id));
- return {projects:allowed.map(p=>({id:p.id,name:p.name})),workspaces:projects.data.workspaces.filter(w=>allowed.some(p=>p.id===w.projectId)).map(w=>({id:w.id,projectId:w.projectId})),preview:owner};
+ return {projects:allowed.map(p=>({id:p.id,name:p.name})),workspaces:projects.data.workspaces.filter(w=>allowed.some(p=>p.id===w.projectId)).map(w=>({id:w.id,projectId:w.projectId})),preview:owner,accessType:req[verifiedWebViewer]===undefined?'private':'web'};
 }
 async function handleObserverApi(req,res,url){
  if(req.method!=='GET'||!['/bibilen/api/viewer/projects','/bibilen/api/viewer/state'].includes(url.pathname)){sendJson(res,403,{error:'Bu işlem izleyici erişiminde kapalı.'});return true;}
- const owner=accessPolicy.canWrite(req.headers),login=accessPolicy.identity(req.headers);
+ const {owner,login}=observerPrincipal(req,accessPolicy);
  if(!login){sendJson(res,403,{error:'Kendi Tailscale hesabınla bağlanmalısın.'});return true;}
  const visible=observerProjects(req);
  if(url.pathname.endsWith('/projects')){sendJson(res,200,visible);return true;}
@@ -261,7 +264,7 @@ async function handleApi(req,res,url){
     const {context:executionContext,cwd,taskManager,sessionManager,workTracker,appearance,integrations,slackAlarms,dailyReports,operations,pushManager}=runtime;
     if(url.pathname.startsWith('/bibilen/api/sharing')){
       const actor=accessPolicy.identity(req.headers);
-      if(req.method==='GET'&&url.pathname==='/bibilen/api/sharing'){sendJson(res,200,observerSharing.state(executionContext.projectId));return true;}
+      if(req.method==='GET'&&url.pathname==='/bibilen/api/sharing'){sendJson(res,200,{...observerSharing.state(executionContext.projectId),webAccess:webViewerState});return true;}
       if(req.method==='POST'&&url.pathname==='/bibilen/api/sharing/grants'){sendJson(res,200,observerSharing.grant(executionContext.projectId,await readJson(req),actor));return true;}
       const revoke=url.pathname.match(/^\/bibilen\/api\/sharing\/grants\/([^/]+)\/revoke$/);
       if(req.method==='POST'&&revoke){sendJson(res,200,observerSharing.revoke(executionContext.projectId,revoke[1],actor));return true;}
@@ -426,5 +429,7 @@ function connectPresence(runtime){
 }
 const presenceTimer=setInterval(()=>{for(const runtime of runtimes.values())void recoverPresence(runtime);},5000);
 server.listen(gatewayPort,'127.0.0.1',()=>console.log('BiBilen office gateway: http://127.0.0.1:3100 (private Tailscale access)'));
-function stop(){if(stopping)return;stopping=true;clearInterval(backupTimer);clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
+const webViewerServer=viewerConfig?createWebObserverServer({config:viewerConfig,api:handleObserverApi,page:serveObserverPage}):null;
+if(webViewerServer){webViewerServer.on('error',()=>{console.error('Web viewer listener unavailable; private office is unchanged.');webViewerState.enabled=false;});webViewerServer.listen(viewerConfig.port,'127.0.0.1');}
+function stop(){webViewerServer?.close();if(stopping)return;stopping=true;clearInterval(backupTimer);clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
 process.on('SIGTERM',stop);process.on('SIGINT',stop);

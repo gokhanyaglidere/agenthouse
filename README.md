@@ -428,3 +428,7 @@ Remove/expire a grant to deny new reads; existing downloaded information cannot 
 recalled. The owner can preview the portal without adding a real member.
 
 [Scope, tests and onboarding limits](design/observer-sharing-acceptance-2026-10-12.md).
+
+### Browser-only observer access
+
+An opt-in Cloudflare Access observer listener is implemented, default disabled. It uses an independently validated application JWT and existing project grants, and never grants control/owner access. Domain, Access policy and named-tunnel provisioning are still required; this is not yet an active public URL. See [setup and verification](design/browser-viewer-access-2026-10-13.md) and the `deploy/` templates. Never point a public tunnel at the owner gateway.

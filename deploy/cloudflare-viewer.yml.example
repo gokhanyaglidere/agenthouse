@@ -1,0 +1,15 @@
+# Named tunnel only. Replace placeholders after creating Access policy.
+# Keep tunnel credentials outside this repository, readable only by the owner.
+tunnel: YOUR_TUNNEL_UUID
+credentials-file: /ABSOLUTE/PRIVATE/PATH/tunnel.json
+ingress:
+  - hostname: view.YOUR_DOMAIN
+    service: http://127.0.0.1:3101
+    originRequest:
+      httpHostHeader: view.YOUR_DOMAIN
+      access:
+        required: true
+        teamName: YOUR_ACCESS_TEAM
+        audTag:
+          - YOUR_ACCESS_APPLICATION_AUDIENCE
+  - service: http_status:404
