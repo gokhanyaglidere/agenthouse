@@ -29,3 +29,9 @@ A real signed `/ws?workspaceId=...` connection opens from Mac, both directly to 
 Claude interactive authentication in the WSL ahost account is still required before real session execution. No login credentials or model prompt were sent from Mac.
 
 Deploy the merged main to WSL (including npm dependencies), then investigate native pixel-office process/readiness, websocket message handling and assets there. Recheck layoutLoaded from Mac and conduct one owner-approved controlled Claude session after login. Existing Windows-native sessions remain outside takeover support. Cross-host push delivery, remote observer sharing and shared subscription admission enforcement remain tracked follow-ups.
+
+## Follow-up: Windows office repaired and verified from Mac
+
+After the Windows operator repaired the native office installation, a fresh Mac-origin signed bridge test received `layoutLoaded` successfully. The host remains online with sandbox prerequisites ready and the allowlist still contains only One-Line. The private browser selected `One-Line · Windows WSL` and rendered the office and garden; the missing-layout placeholder is gone. No task, session or login command was submitted. Local screenshot: design/verification/windows-office-confirmed-2026-10-13.png.
+
+This supersedes the missing-layout issue above. WSL interactive Claude authentication and an owner-approved model execution test are still unverified. Other documented cross-host limits remain.
