@@ -1,4 +1,4 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {configureRoster,ROSTER} from './roster.js';
 import {makeLayout} from './layouts.js';
 import {scopedUrl} from './workspace.js';
@@ -16,3 +16,5 @@ describe('project profiles',()=>{
  });
 });
 describe('project-native metadata',()=>{it('does not substitute another project’s known role metadata',()=>{configureRoster(['chief','finance-analyst'],false,[{key:'finance-analyst',name:'finance-analyst',description:'Only this project financial rules',skills:['budget'],skillLinks:[{name:'budget',available:false}]}]);expect(ROSTER.find(r=>r.key==='finance-analyst')?.description).toBe('Only this project financial rules');expect(ROSTER.find(r=>r.key==='finance-analyst')?.skills).toEqual(['budget · bulunamadı']);configureRoster(['chief'],false,[]);expect(ROSTER.length).toBe(1);expect(ROSTER[0].group).toBe('Ana oturum');});});
+
+it('task and report navigation preserves the selected workspace across full page navigation',async()=>{vi.stubGlobal('location',{search:'?workspaceId=project-b'});vi.resetModules();try{const scoped=await import('./workspace.js');const url=new URL(scoped.scopedUrl('/?view=tasks&task=task-123'),'https://office.invalid');expect(url.searchParams.get('workspaceId')).toBe('project-b');expect(url.searchParams.get('task')).toBe('task-123');expect(url.searchParams.get('view')).toBe('tasks');}finally{vi.unstubAllGlobals();vi.resetModules();}});

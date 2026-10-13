@@ -1,0 +1,3 @@
+import {test,expect} from 'vitest';import {requestFence} from './request-fence.js';
+test('a poll started before a save cannot overwrite its resulting state',()=>{const fence=requestFence(),old=fence.capture();expect(fence.lock()).toBe(true);expect(fence.capture()).toBe(null);expect(fence.matches(old)).toBe(false);expect(fence.lock()).toBe(false);fence.unlock();expect(fence.matches(old)).toBe(false);expect(fence.matches(fence.capture())).toBe(true);});
+test('closed and reactivated views reject previous request tickets',()=>{const fence=requestFence(),old=fence.capture();fence.dispose();expect(fence.matches(old)).toBe(false);expect(fence.lock()).toBe(false);fence.activate();expect(fence.matches(old)).toBe(false);expect(fence.matches(fence.capture())).toBe(true);});

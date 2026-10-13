@@ -1,0 +1,2 @@
+import {useEffect,useRef,useState} from 'react';import {requestFence} from './request-fence.js';
+export function useRequestFence(){const fence=useRef(requestFence());const [busy,setBusy]=useState(false);useEffect(()=>{fence.current.activate();return()=>fence.current.dispose();},[]);return {busy,lock:()=>{if(!fence.current.lock())return false;setBusy(true);return true;},unlock:()=>{fence.current.unlock();setBusy(false);},capture:()=>fence.current.capture(),matches:(ticket:number|null)=>fence.current.matches(ticket)};}

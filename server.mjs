@@ -236,6 +236,7 @@ async function handleApi(req,res,url){
   const operator=accessPolicy.canWrite(req.headers);
   try{
     if(!operator||url.pathname.startsWith('/bibilen/api/viewer/'))return await handleObserverApi(req,res,url);
+    if(!['GET','POST'].includes(req.method)){sendJson(res,405,{error:'Desteklenmeyen HTTP yöntemi.'});return true;}
     if(req.method==='GET'&&url.pathname==='/bibilen/api/session-catalog'){sendJson(res,200,await sessionCatalog.list());return true;}
     const catalogMatch=url.pathname.match(/^\/bibilen\/api\/session-catalog\/([^/]+)\/transcript$/);
     if(req.method==='GET'&&catalogMatch){sendJson(res,200,await sessionCatalog.transcript(decodeURIComponent(catalogMatch[1]),url.searchParams.has('before')?url.searchParams.get('before'):undefined));return true;}
