@@ -13,3 +13,7 @@ Changes based on the six observed issues:
 Validation: 193 backend + 95 UI tests passed, TypeScript/build passed, whitespace check clean. Live browser confirmed project scope controls, full room names, searchable picker with distinguishing metadata and primary-action contrast. Verification reads existing histories only; no jobs or messages launched. A new regression verifies workspace isolation when two projects have identical display names.
 
 Target assessment: the earlier ~7/10 review identified these concrete defects. This pass addresses them; a 9–9.5 rating remains a quality target, not a certified metric. Physical-device, screen-reader and user task-completion tests are not represented as completed. Owner previously deferred physical-device checks. Remaining quality validation should measure finding an existing session, answering it, switching project and tracking multiple conversations, including busy/error states.
+
+## Density follow-up
+
+Replaced separate scope buttons and hidden project filter with one visibly labelled project scope selector next to search. Status tabs and result count now share a row. Cards put title and status together, followed by project/date/short identity and a horizontal action row. Narrow screens use a named icon for New conversation, keep response/history actions side by side, and stack scope/search only below 420px to avoid cramped input. No controller, provider limit, session access or API behavior changed. Full 193 backend + 95 UI tests and TypeScript/build passed again.
