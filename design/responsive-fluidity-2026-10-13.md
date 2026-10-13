@@ -14,3 +14,9 @@ Validation: 193 backend + 102 UI tests passed; TypeScript/production build passe
 Browser review also found a legacy mobile SVG rule hiding the New conversation icon, and a stale Conversation history heading while split view was active. Restored the icon and added the correct Multi-session heading. Focus and low-height modes keep disconnected/error status visible. Touch gestures use xterm's native mouse protocol when supported; only the alternate-buffer keyboard fallback is rate-limited.
 
 Responsive browser checks used 390×844 and 1440×900. Focus mode expanded the live CLI area at mobile width. Mobile pane tabs appeared without duplicating the grid. Screenshots: design/verification/fluid-mobile-2026-10-13.png and fluid-desktop-2026-10-13.png. Physical keyboard/touch validation remains deferred.
+
+## Whole-session scrolling correction
+
+Owner confirmed dictation works, but reported inability to scroll the complete session screen. The console's outer overflow:hidden plus shrinking flex children allowed only inner terminal/history/footer areas to scroll. Changed the outer session/task console to vertical scrolling, preserved a minimum usable terminal height, and let the footer flow naturally rather than becoming a second clipped scroll region. Mobile close/header remains sticky. Native terminal gestures remain owned by the terminal; history boundary gestures may chain to the outer console. Existing viewport keyboard adaptation remains in place. All 193 backend + 102 UI tests and build passed.
+
+Verified in a 390×600 browser viewport: outer console content 727px versus 582px visible height; a gesture on the footer moved outer scrollTop 0→145 and exposed microphone/send/key controls. Upward gesture outside terminal moved 145→0. Close header stayed visible. Screenshot: design/verification/whole-session-scroll-2026-10-13.png. Physical touch hardware was not used.
