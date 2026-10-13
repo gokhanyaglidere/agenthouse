@@ -328,14 +328,11 @@ function App() {
       return false;
     })();
 
-  if (!layoutReady) {
-    return <div className="w-full h-full flex items-center justify-center ">Loading...</div>;
-  }
 
   return (
     <div ref={containerRef} className="w-full h-full relative overflow-hidden">
-      <BibilenOffice onEditLayout={editor.handleToggleEditMode} onAdvancedSettings={()=>setIsSettingsOpen(true)} office={officeState} subagents={subagentCharacters} onLayout={editor.setLastSavedLayout} zoom={editor.zoom} onZoom={editor.handleZoomChange} panRef={editor.panRef} />
-      <OfficeCanvas
+      <BibilenOffice officeReady={layoutReady} onEditLayout={()=>{if(layoutReady)editor.handleToggleEditMode();}} onAdvancedSettings={()=>setIsSettingsOpen(true)} office={officeState} subagents={subagentCharacters} onLayout={editor.setLastSavedLayout} zoom={editor.zoom} onZoom={editor.handleZoomChange} panRef={editor.panRef} />
+      {layoutReady&&<OfficeCanvas
         officeState={officeState}
         onClick={handleClick}
         isEditMode={editor.isEditMode}
@@ -352,7 +349,7 @@ function App() {
         panRef={editor.panRef}
         showAreas={effectiveShowAreas}
         activeAreaLabel={activeAreaLabel}
-      />
+      />}
 
       {!isDebugMode ? (
         <>

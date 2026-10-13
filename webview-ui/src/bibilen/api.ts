@@ -69,7 +69,7 @@ export const updateAppearance=(input:{style?:'cozy'|'original';role?:string;pale
 export const getOperations=()=>request<import('./OperationsCard.js').OperationsState>('operations');
 export const prepareOperation=(input:{kind:string;sourceId?:string;notes?:string})=>request<{task:BibilenTask;reused:boolean}>('operations/tasks',{method:'POST',body:JSON.stringify(input)});
 
-export interface ProjectInventory {defaultWorkspaceId:string;projects:Array<{id:string;name:string}>;workspaces:Array<{id:string;projectId:string;root?:string;runtime:string}>;admission:{limit:number;active:number};}
+export interface ProjectInventory {defaultWorkspaceId:string;projects:Array<{id:string;name:string}>;workspaces:Array<{id:string;projectId:string;root?:string;runtime:string;remote?:boolean;hostName?:string;hostStatus?:string}>;admission:{limit:number;active:number};}
 export const getProjects=()=>request<ProjectInventory>('projects');
 export const registerProject=(name:string,path:string,templates=false)=>request<{workspace:{id:string};capabilities:CapabilityInventory}>('projects',{method:'POST',body:JSON.stringify({name,path,templates})});
 export const getPortfolio=()=>request<{items:Array<{workspaceId:string;projectId:string;name:string;available:boolean;tasks:BibilenTask[];inventoryAvailable:boolean;connectedSessions:number;workingMembers:Array<{sessionId:string;id:string;label:string;role:string|null}>}>;admission:{limit:number;active:number}}>('portfolio');
