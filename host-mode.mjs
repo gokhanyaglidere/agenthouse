@@ -16,7 +16,9 @@ const UNSCOPED_ALLOWED = new Set(['POST /bibilen/api/projects', 'GET /bibilen/ap
 export function loadHostCredential(path) {
   const c = JSON.parse(readFileSync(path, 'utf8'));
   if (!c.hostId || !c.secret || c.secret.length < 32 || !Array.isArray(c.allowedRoots)) throw new Error('Host credential file is incomplete.');
-  const windowsClaudeProjects = typeof c.windowsClaudeProjects === 'string' && existsSync(c.windowsClaudeProjects) ? realpathSync(c.windowsClaudeProjects) : null;
+  // Optional read-only mirror of the Windows Claude transcripts; configured by file or, to keep user-specific paths out of it, by env.
+  const wcp = c.windowsClaudeProjects ?? process.env.AGENT_HOUSE_WINDOWS_CLAUDE_PROJECTS;
+  const windowsClaudeProjects = typeof wcp === 'string' && existsSync(wcp) ? realpathSync(wcp) : null;
   return {hostId: c.hostId, secret: c.secret, allowedRoots: c.allowedRoots.map(r => realpathSync(r)), accountLabel: c.accountLabel ?? '', windowsClaudeProjects};
 }
 
