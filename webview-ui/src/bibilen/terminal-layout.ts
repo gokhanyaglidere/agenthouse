@@ -1,0 +1,2 @@
+export function frameBatch(callback:()=>void,request:(callback:()=>void)=>number=requestAnimationFrame,cancel:(id:number)=>void=cancelAnimationFrame){let pending:number|null=null,alive=true;return {schedule(){if(!alive||pending!==null)return;pending=request(()=>{pending=null;if(alive)callback();});},dispose(){alive=false;if(pending!==null)cancel(pending);pending=null;}};}
+export function consoleViewport(height:number,offset:number){return {top:Math.max(0,offset)+8,height:Math.max(80,height-16)};}
