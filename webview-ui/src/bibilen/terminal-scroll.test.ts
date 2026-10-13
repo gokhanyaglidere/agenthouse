@@ -1,2 +1,2 @@
-import {test,expect} from 'vitest';import {terminalScrollMode} from './terminal-scroll.js';
-test('scrolling alternate or exhausted screens opens saved history rather than sending CLI keys',()=>{expect(terminalScrollMode('alternate',0,-1)).toBe('history');expect(terminalScrollMode('normal',0,-1)).toBe('history');expect(terminalScrollMode('normal',25,-1)).toBe('terminal');expect(terminalScrollMode('normal',25,1)).toBe('terminal');});
+import {test,expect} from 'vitest';import {terminalScrollMode,liveScrollKey} from './terminal-scroll.js';
+test('live scroll stays inside terminal: alternate uses CLI navigation, normal uses scrollback',()=>{expect(terminalScrollMode('alternate')).toBe('cli');expect(terminalScrollMode('normal')).toBe('terminal');expect(liveScrollKey(-12)).toBe('\x1b[5~');expect(liveScrollKey(12)).toBe('\x1b[6~');expect(liveScrollKey(-12)).not.toBe('\x1b[A');});

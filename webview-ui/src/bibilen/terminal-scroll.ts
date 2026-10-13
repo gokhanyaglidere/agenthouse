@@ -1,1 +1,2 @@
-export function terminalScrollMode(type:string,baseY:number,direction:number){return direction<0&&(type==='alternate'||baseY===0)?'history':'terminal';}
+export function terminalScrollMode(type:string){return type==='alternate'?'cli':'terminal';}
+export function liveScrollKey(amount:number){return amount<0?'\x1b[5~':'\x1b[6~';}
