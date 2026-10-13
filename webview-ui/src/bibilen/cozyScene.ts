@@ -223,13 +223,13 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   let title=room.locked?'Gökhan · CEO':room.label;
   const available=(room.right-room.left)*16*zoom-16*dpr;
   if(available<28*dpr)continue;
-  if(ctx.measureText(title).width>available){while(title.length&&ctx.measureText(title+'…').width>available)title=title.slice(0,-1);title=title.trimEnd()+'…';}
+  const words=title.split(/\s+/);const lines:string[]=[''];for(const word of words){const last=lines.length-1;if(lines[last]&&ctx.measureText(lines[last]+' '+word).width>available)lines.push(word);else lines[last]+=(lines[last]?' ':'')+word;}if(lines.length>3)continue;
   const cx=Math.round(x+(room.left+room.right+1)*8*zoom),cy=Math.round(y+(room.top*16-7)*zoom);
-  const width=Math.ceil(ctx.measureText(title).width)+12*dpr,height=fontSize+6*dpr;
+  const width=Math.ceil(Math.max(...lines.map(line=>ctx.measureText(line).width)))+12*dpr,height=lines.length*fontSize*1.15+6*dpr;
   if(cx+width/2<0||cx-width/2>ctx.canvas.width||cy+height/2<0||cy-height/2>ctx.canvas.height)continue;
   ctx.fillStyle='#614831';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
   ctx.fillStyle='#eadcba';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
-  ctx.fillStyle='#354c36';ctx.fillText(title,cx,cy);
+  ctx.fillStyle='#354c36';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
  }
  ctx.restore();
  if(motionEnabled()){

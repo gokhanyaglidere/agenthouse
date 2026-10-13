@@ -1,0 +1,2 @@
+import {test,expect} from 'vitest';import {scopedSessions} from './session-scope.js';import type {CatalogSession} from './types.js';
+test('selected-project scope uses workspace identity even when project names overlap',()=>{const items=[{workspaceId:'a',projectName:'App'},{workspaceId:'b',projectName:'App'},{workspaceId:null,projectName:'Other'}] as CatalogSession[];expect(scopedSessions(items,'current','a')).toEqual([items[0]]);expect(scopedSessions(items,'current',null)).toEqual([]);expect(scopedSessions(items,'all','a')).toEqual(items);});
