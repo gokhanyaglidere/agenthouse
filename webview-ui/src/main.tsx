@@ -20,6 +20,7 @@ async function main() {
       const root=document.getElementById('root')!;root.textContent='Bu çalışma ortamı açılamadı. Ana projeye dönmek için adresin workspaceId parametresini kaldır.';return;
     }
   }
+  if(isBrowserRuntime&&new URLSearchParams(location.search).get('sessionPane')==='1'){const {SessionPane}=await import('./bibilen/SessionPane.js');createRoot(document.getElementById('root')!).render(<StrictMode><SessionPane/></StrictMode>);return;}
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />

@@ -9,8 +9,8 @@ import {useEffect,useRef,useState} from 'react';
 import {Terminal} from '@xterm/xterm';import {FitAddon} from '@xterm/addon-fit';import '@xterm/xterm/css/xterm.css';
 import {Icon} from './Icon.js';import type {ClaudeSession} from './types.js';
 import {getTranscript} from './api.js';import type {ConversationMessage} from './types.js';
-export function SessionTerminal({session,close,onSessionChange}:{session:ClaudeSession;close:()=>void;onSessionChange:(id:string,title:string)=>void}){
- const dialog=useRef<HTMLElement>(null);useDialogFocus(dialog);
+export function SessionTerminal({session,close,onSessionChange,embedded=false}:{embedded?:boolean;session:ClaudeSession;close:()=>void;onSessionChange:(id:string,title:string)=>void}){
+ const dialog=useRef<HTMLElement>(null);useDialogFocus(dialog,!embedded);
  const mount=useRef<HTMLDivElement>(null);const [status,setStatus]=useState('Bağlanıyor…');
  const send=useRef<(data:string)=>boolean>(()=>false);const focus=useRef(()=>{});
  const [canWrite,setCanWrite]=useState(false);const [draft,setDraft]=useDraft('session:'+session.id);const [connectionVersion,reconnect]=useState(0);const [history,setHistory]=useState(false);
@@ -40,7 +40,7 @@ export function SessionTerminal({session,close,onSessionChange}:{session:ClaudeS
   const observer=new ResizeObserver(resize);observer.observe(mount.current);
   return()=>{writable=false;send.current=()=>false;focus.current=()=>{};observer.disconnect();input.dispose();ws.close();terminal.dispose();};
  },[session.id,onSessionChange,connectionVersion]);
- return <section ref={dialog} className="bb-console" role="dialog" aria-modal="true" aria-label="Claude oturumu"><header><div><small>Claude Code</small><strong>{session.title}</strong></div><button aria-label="Oturum panelini kapat" onClick={close}><Icon name="close"/></button></header>
+ return <section ref={dialog} className="bb-console" role={embedded?'region':'dialog'} aria-modal={embedded?undefined:true} aria-label="Claude oturumu"><header><div><small>Claude Code</small><strong>{session.title}</strong></div><button aria-label="Oturum panelini kapat" onClick={close}><Icon name="close"/></button></header>
   <nav className="bb-terminal-tabs" aria-label="Konuşma görünümü"><button aria-pressed={!history} onClick={()=>setHistory(false)}>Canlı terminal</button><button aria-pressed={history} onClick={()=>{setHistory(true);void read();}}>Konuşma geçmişi</button></nav>
   <SessionControls key={session.id} canWrite={canWrite} send={text=>send.current(text)} stage={text=>{if(draft.trim()||text.length>20000)return false;setDraft(text);return true;}}/>
   <div className="bb-terminal" hidden={history} ref={mount}/>
