@@ -371,6 +371,11 @@ async function handleApi(req,res,url){
     }
     const transcriptMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/transcript$/);
     if(req.method==='GET'&&transcriptMatch){sendJson(res,200,await sessionManager.transcript(transcriptMatch[1],url.searchParams.has('before')?url.searchParams.get('before'):undefined));return true;}
+    const remoteControlMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/remote-control$/);
+    if(req.method==='POST'&&remoteControlMatch){
+      if(!operator){sendJson(res,403,{error:'Bağlantıyı yalnızca yönetici değiştirebilir.'});return true;}
+      sendJson(res,200,{session:await sessionManager.setRemoteControl(remoteControlMatch[1],(await readJson(req)).url)});return true;
+    }
     const takeoverMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/takeover$/);
     if(req.method==='POST'&&takeoverMatch){
       if(!operator){sendJson(res,403,{error:'Oturumu yalnızca yönetici devralabilir.'});return true;}

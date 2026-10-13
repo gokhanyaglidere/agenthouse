@@ -1,3 +1,4 @@
+import {remoteControlUrl} from './remote-control-links.mjs';
 import {hasNativeWork} from './native-work-state.mjs';
 import {sessionOptions,sessionOptionArgs} from './session-options.mjs';
 import {execFileSync} from 'node:child_process';
@@ -88,7 +89,7 @@ export class SessionManager{
    const ext=this.isExternal(item.id);const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
    return {id:item.id,title:task?.title??item.title,role:item.role??task?.role??null,createdAt:item.createdAt,updatedAt:item.updatedAt,status,activity:agent?.state??agent?.status??(own?'open':'unknown'),
     canOpen:!ext&&(!!own||!!background||(!active&&inventory.available)),canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
-    taskId:task?.id??null,taskTitle:task?.title??null,taskStatus:task?.status??null,
+    remoteControlUrl:this.saved[item.id]?.remoteControlUrl??null,taskId:task?.id??null,taskTitle:task?.title??null,taskStatus:task?.status??null,
     origin:ext?'windows':'host',note:ext?(!inventory.available?'Windows canlı durumu doğrulanamadı; bu kayıt yalnızca izlenebilir.':'Windows oturumu: Mac panelinden yalnızca izlenebilir. Devam etmek için Windows tarafında aç.'):status==='external'?'Başka bir terminalde açık. Geçmişini okuyabilirsin; devam etmek için önce o terminalde oturumu kapat.':!inventory.available&&!own?'Aktif oturumlar doğrulanamadı. Yenileyip tekrar dene.':null};
   }).sort((a,b)=>b.updatedAt-a.updatedAt)};
  }
@@ -111,6 +112,12 @@ export class SessionManager{
   for(const line of lines){let row;try{row=JSON.parse(line);}catch{}const entry=row&&conversationEntry(row);if(entry)entries.push({entry,offset:position});position+=Buffer.byteLength(line)+1;}
   const recent=entries.slice(-120);const next=entries.length>120?recent[0].offset:offset;
   return {messages:recent.map(r=>r.entry),nextBefore:next>0?next:null};
+ }
+ async setRemoteControl(id,url){
+  this.context?.assertValid();const session=await this.known(id);
+  if(session.origin!=='windows')throw Error('Bu bağlantı Windows oturumları içindir.');
+  const value=remoteControlUrl(url);
+  this.saved[id]={...this.saved[id],title:session.title,createdAt:session.createdAt,updatedAt:Date.now(),...(this.context?{workspaceId:this.context.workspaceId}:{}),remoteControlUrl:value||null};this.save();return await this.known(id);
  }
  async takeover(id){
   if(this.isExternal(id))throw Error('Windows oturumu yalnızca izlenebilir.');

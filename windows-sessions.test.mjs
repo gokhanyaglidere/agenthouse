@@ -77,3 +77,32 @@ test('verified live mirror appears active but remains read-only and uses its mir
   const session=(await f.manager.list()).sessions.find(s=>s.id===ID);assert.equal(session.status,'external');assert.equal(session.activity,'busy');assert.equal(session.canOpen,false);assert.equal(session.canStop,false);assert.equal(f.manager.path(ID),join(f.win,ID+'.jsonl'));
  }finally{rmSync(f.dir,{recursive:true,force:true});}
 });
+
+test('Windows Remote Control links persist without launching or stopping a process',async()=>{
+ const f=fixture();try{
+  const before=readFileSync(join(f.win,ID+'.jsonl'),'utf8');
+  const url='https://claude.ai/code/session_example';
+  const saved=await f.manager.setRemoteControl(ID,url);assert.equal(saved.remoteControlUrl,url);assert.equal(saved.canOpen,false);
+  assert.equal((await f.manager.list()).sessions.find(s=>s.id===ID).remoteControlUrl,url);
+  assert.equal(readFileSync(join(f.win,ID+'.jsonl'),'utf8'),before);
+  assert.equal((await f.manager.setRemoteControl(ID,'')).remoteControlUrl,null);
+ }finally{rmSync(f.dir,{recursive:true,force:true});}
+});
+test('Remote Control rejects foreign scopes and misleading or executable links',async()=>{
+ const f=fixture();try{
+  for(const url of ['javascript:alert(1)','https://claude.ai.evil/code/x','https://user:pass@claude.ai/code/x','https://claude.ai:444/code/x','https://claude.ai/settings','http://claude.ai/code/x'])await assert.rejects(f.manager.setRemoteControl(ID,url));
+  await assert.rejects(f.manager.setRemoteControl(OTHER,'https://claude.ai/code/session_example'));
+ }finally{rmSync(f.dir,{recursive:true,force:true});}
+});
+
+test('central gateway saves remote control per host workspace without a host software update',async()=>{
+ const {HostManager,remoteWorkspaceId}=await import('./host-manager.mjs');const {Readable}=await import('node:stream');
+ const f=fixture();try{
+  const manager=new HostManager({hostsPath:join(f.dir,'hosts.json'),secretsPath:join(f.dir,'secrets.json')});const host='12345678',workspace='one',scope=remoteWorkspaceId(host,workspace);
+  const link={info:{workspaces:[{id:workspace}]},effectiveStatus:()=> 'online',request:async input=>{assert.equal(input.method,'GET');return {status:200,body:JSON.stringify({sessions:[{id:ID,origin:'windows'}]})};}};manager.links.set(host,link);
+  const invoke=async(id,url)=>{const req=Readable.from([Buffer.from(JSON.stringify({url}))]);req.method='POST';req.headers={};let status,body;await manager.proxy(req,{writeHead:n=>{status=n;},end:s=>{body=JSON.parse(s);}},new URL('http://localhost/bibilen/api/sessions/'+id+'/remote-control?workspaceId='+scope));return {status,body};};
+  const result=await invoke(ID,'https://claude.ai/code/session_example');assert.equal(result.status,200);assert.equal(result.body.session.remoteControlUrl,'https://claude.ai/code/session_example');
+  assert.equal((await invoke(OTHER,'https://claude.ai/code/session_example')).status,404);
+  const restored=new HostManager({hostsPath:join(f.dir,'hosts.json'),secretsPath:join(f.dir,'secrets.json')});assert.equal(restored.controlLinks[scope+':'+ID],'https://claude.ai/code/session_example');assert.equal(restored.controlLinks[remoteWorkspaceId(host,'other')+':'+ID],undefined);
+ }finally{rmSync(f.dir,{recursive:true,force:true});}
+});

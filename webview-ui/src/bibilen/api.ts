@@ -119,3 +119,5 @@ export interface ProjectContextState{decisions:Array<{id:string;text:string;acti
 export const getProjectContext=()=>request<ProjectContextState>('project-context');
 export const addProjectDecision=(text:string)=>request<ProjectContextState>('project-context',{method:'POST',body:JSON.stringify({text})});
 export const archiveProjectDecision=(id:string)=>request<ProjectContextState>(`project-context/${id}/archive`,{method:'POST',body:'{}'});
+
+export const setRemoteControlUrl=(id:string,url:string)=>request<{session:import('./types.js').ClaudeSession}>(`sessions/${encodeURIComponent(id)}/remote-control`,{method:'POST',body:JSON.stringify({url})});

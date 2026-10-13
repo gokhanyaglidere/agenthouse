@@ -1,8 +1,9 @@
+import {remoteControlUrl} from './remote-control-links.mjs';
 // Central-gateway registry of remote execution hosts and the proxy that forwards workspace-scoped API calls
 // and terminal websockets to them. Remote workspaces are addressed as `h~<hostId>~<hostWorkspaceId>` so the
 // same project name or workspace id on two computers can never collide.
 import {readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync} from 'node:fs';
-import {dirname} from 'node:path';
+import {dirname,join} from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {WebSocket, WebSocketServer} from 'ws';
 import {HostLink, HostError, assertTailnetUrl} from './host-link.mjs';
@@ -25,6 +26,7 @@ const readJson = (path, fallback) => {try {return JSON.parse(readFileSync(path, 
 export class HostManager {
   constructor({hostsPath, secretsPath, linkOptions = {}, allowLoopback = false} = {}) {
     this.hostsPath = hostsPath; this.secretsPath = secretsPath; this.linkOptions = {...linkOptions, allowLoopback}; this.allowLoopback = allowLoopback;
+    this.controlLinksPath=join(dirname(hostsPath),'remote-control-links.json');this.controlLinks=readJson(this.controlLinksPath,{});
     this.links = new Map();
     this.wss = new WebSocketServer({noServer: true, maxPayload: 65536, handleProtocols: () => 'bibilen-control'});
     this.sockets = new Set();
@@ -89,7 +91,7 @@ export class HostManager {
   async catalog() {
     const sessions=[];let inventoryAvailable=true;
     for(const l of this.links.values())for(const w of l.info?.workspaces??[]){
-      try{const r=await l.request({method:'GET',path:'/bibilen/api/sessions?workspaceId='+encodeURIComponent(w.id),workspaceId:w.id});if(r.status!==200)throw Error();const data=JSON.parse(r.body);inventoryAvailable&&=!!data.inventoryAvailable;const wid=remoteWorkspaceId(l.id,w.id);for(const session of data.sessions??[])sessions.push({...session,workspaceId:wid,catalogKey:wid+':'+session.id,projectName:w.name,remote:true,hostName:l.name});}catch{inventoryAvailable=false;}
+      try{const r=await l.request({method:'GET',path:'/bibilen/api/sessions?workspaceId='+encodeURIComponent(w.id),workspaceId:w.id});if(r.status!==200)throw Error();const data=JSON.parse(r.body);inventoryAvailable&&=!!data.inventoryAvailable;const wid=remoteWorkspaceId(l.id,w.id);for(const session of data.sessions??[])sessions.push({...session,remoteControlUrl:this.controlLinks[wid+':'+session.id]??session.remoteControlUrl??null,workspaceId:wid,catalogKey:wid+':'+session.id,projectName:w.name,remote:true,hostName:l.name});}catch{inventoryAvailable=false;}
     }
     return {sessions,inventoryAvailable};
   }
@@ -135,10 +137,20 @@ export class HostManager {
     const commandId = typeof req.headers['x-command-id'] === 'string' && /^[A-Za-z0-9._~-]{1,100}$/.test(req.headers['x-command-id']) ? req.headers['x-command-id'] : undefined;
     const expected = typeof req.headers['x-expected-revision'] === 'string' ? req.headers['x-expected-revision'] : undefined;
     try {
+      const controlMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([0-9a-f-]{36})\/remote-control$/i);
+      if(req.method==='POST'&&controlMatch){
+        const inventory=await link.request({method:'GET',path:'/bibilen/api/sessions?workspaceId='+encodeURIComponent(p.workspaceId),workspaceId:p.workspaceId,actor});
+        if(inventory.status!==200)return send(503,{error:'Windows oturumları doğrulanamadı.'});
+        const session=JSON.parse(inventory.body).sessions?.find(s=>s.id===controlMatch[1]&&s.origin==='windows');
+        if(!session)return send(404,{error:'Bu projede Windows oturumu bulunamadı.'});
+        let value;try{value=remoteControlUrl(JSON.parse(String(body)).url);}catch(error){return send(400,{error:error.message});}
+        const key=scoped+':'+session.id;const next={...this.controlLinks};if(value)next[key]=value;else delete next[key];writeSecret(this.controlLinksPath,next);this.controlLinks=next;
+        return send(200,{session:{...session,remoteControlUrl:value||null}});
+      }
       const r = await link.request({method: req.method, path: url.pathname + url.search, body, workspaceId: p.workspaceId, revision: expected, commandId, actor});
       const type = r.headers.get('content-type') ?? 'application/json';
       res.writeHead(r.status, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-AH-Host-Status': link.effectiveStatus(), ...(r.commandId ? {'X-AH-Command': r.commandId} : {})});
-      if(type.includes('application/json')){try{const data=JSON.parse(r.body);const scope=v=>{if(!v||typeof v!=='object')return;if(Array.isArray(v)){v.forEach(scope);return;}for(const [key,value]of Object.entries(v)){if(['workspaceId','projectId'].includes(key)&&typeof value==='string'&&!parseRemote(value))v[key]=remoteWorkspaceId(p.hostId,value);else scope(value);}};scope(data);return res.end(JSON.stringify(data));}catch{}}
+      if(type.includes('application/json')){try{const data=JSON.parse(r.body);if(req.method==='GET'&&url.pathname==='/bibilen/api/sessions')for(const session of data.sessions??[])session.remoteControlUrl=this.controlLinks[scoped+':'+session.id]??session.remoteControlUrl??null;const scope=v=>{if(!v||typeof v!=='object')return;if(Array.isArray(v)){v.forEach(scope);return;}for(const [key,value]of Object.entries(v)){if(['workspaceId','projectId'].includes(key)&&typeof value==='string'&&!parseRemote(value))v[key]=remoteWorkspaceId(p.hostId,value);else scope(value);}};scope(data);return res.end(JSON.stringify(data));}catch{}}
       return res.end(r.body);
     } catch (e) {
       if (!(e instanceof HostError)) return send(502, {error: 'proxy_failure'});
