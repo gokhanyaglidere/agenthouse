@@ -1,0 +1,24 @@
+# systemd user unit for an Agent House execution host (WSL2/Linux). Install:
+#   mkdir -p ~/.config/systemd/user && cp deploy/agent-house-host.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now agent-house-host
+#   loginctl enable-linger $USER      # keep it running without an open terminal
+[Unit]
+Description=Agent House execution host (signed commands only, loopback bind)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/agenthouse
+Environment=AGENT_HOUSE_HOST_MODE=1
+Environment=BIBILEN_GATEWAY_PORT=3100
+Environment=BIBILEN_NATIVE_PORT=3101
+Environment=BIBILEN_CLAUDE_PATH=/usr/local/bin/claude
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/node %h/agenthouse/server.mjs
+Restart=on-failure
+RestartSec=5
+# The gateway only binds 127.0.0.1; exposure to the tailnet is done with `tailscale serve`, never funnel.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

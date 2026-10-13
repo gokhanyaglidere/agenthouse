@@ -38,6 +38,10 @@ import { WorkTracker } from './work-tracker.mjs';
 import { presenceInventory } from './session-presence.mjs';
 import { watchTaskTerminal } from './task-terminal-lifecycle.mjs';
 import { homedir } from 'node:os';
+import { HostManager, parseRemote } from './host-manager.mjs';
+import { createHostGuard, loadHostCredential, CommandLedger } from './host-mode.mjs';
+import { cachedPreflight } from './host-preflight.mjs';
+import { decodePairing } from './host-protocol.mjs';
 const here=dirname(fileURLToPath(import.meta.url));
 const projects=new ProjectRegistry();
 const gatewayPort=Number(process.env.BIBILEN_GATEWAY_PORT??3100);
@@ -56,6 +60,11 @@ const observerSharing=new ObserverSharing(join(homedir(),'.pixel-agents','agent-
 const accountPush=new PushManager();
 const stateBackup=new StateBackup(join(homedir(),'.pixel-agents'));
 try{stateBackup.create({daily:true});}catch{}
+// Remote execution hosts. The central gateway (default) proxies to hosts; a host (AGENT_HOUSE_HOST_MODE=1) only
+// accepts signed envelopes from that gateway. See design/windows-host-connector-2026-10-13.md.
+const hostMode=process.env.AGENT_HOUSE_HOST_MODE==='1';
+const hostManager=hostMode?null:new HostManager({hostsPath:join(homedir(),'.pixel-agents','hosts.json'),secretsPath:join(homedir(),'.pixel-agents','host-secrets.json')});
+const hostGuard=hostMode?createHostGuard({credential:loadHostCredential(process.env.AGENT_HOUSE_HOST_CREDENTIAL??join(homedir(),'.pixel-agents','host-credential.json')),port:gatewayPort,ledger:new CommandLedger({path:join(homedir(),'.pixel-agents','host-commands.json')}),workspaces:()=>projects.data.workspaces.map(w=>({id:w.id,projectId:w.projectId,root:w.root,name:projects.data.projects.find(p=>p.id===w.projectId)?.name??w.id})),inventoryRevision:id=>{try{return runtimes.get(id)?.capabilities.scan().revision??null;}catch{return null;}},preflight:cachedPreflight({stateDir:join(homedir(),'.pixel-agents')}),log:(...a)=>console.log('[host]',...a)}):null;
 const backupTimer=setInterval(()=>{try{stateBackup.create({daily:true});}catch{}},3600000);
 const admission=new Admission({limit:3});
 const slackCoordinator=new SlackCoordinator();
@@ -232,15 +241,45 @@ function serveObserverPage(req,res,url){
  else {res.writeHead(403,{'Cache-Control':'no-store'});res.end('Observer access only');return;}
  try{const canonical=realpathSync(path);if(!canonical.startsWith(realpathSync(root)+'/')||!statSync(canonical).isFile())throw Error();const body=readFileSync(canonical);const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.woff':'font/woff','.woff2':'font/woff2'}[extname(canonical)];res.writeHead(200,{'Content-Type':mime??'application/octet-stream','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"});res.end(req.method==='HEAD'?undefined:body);}catch{res.writeHead(503,{'Cache-Control':'no-store'});res.end('Observer page is not ready');}
 }
+async function handleHostApi(req,res,url,operator){
+ const scope=url.searchParams.get('workspaceId')??req.headers['x-workspace-id'];
+ const remote=!!scope&&hostManager.isRemote(scope),route=url.pathname==='/bibilen/api/hosts'||url.pathname.startsWith('/bibilen/api/hosts/');
+ if(!remote&&!route)return false;
+ if(!operator){sendJson(res,403,{error:'Uzak bilgisayarları yalnızca yönetici yönetebilir.'});return true;}
+ const actor=accessPolicy.identity(req.headers)??'';
+ if(remote){await hostManager.proxy(req,res,url,{actor});return true;}
+ try{
+  if(req.method==='GET'&&url.pathname==='/bibilen/api/hosts'){sendJson(res,200,hostManager.state());return true;}
+  if(req.method==='POST'&&url.pathname==='/bibilen/api/hosts'){
+   const input=await readJson(req);const pairing=decodePairing(input.pairing);
+   const {host}=hostManager.add({name:input.name,baseUrl:input.baseUrl,hostId:pairing.hostId,secret:pairing.secret});
+   sendJson(res,201,{host,status:hostManager.link(host.id).snapshot()});return true;
+  }
+  const m=url.pathname.match(/^\/bibilen\/api\/hosts\/([a-z0-9]{8,32})(?:\/(remove|hello|projects|commands\/[A-Za-z0-9._~-]{1,100}))?$/);
+  if(!m){sendJson(res,404,{error:'Bulunamadı.'});return true;}
+  const link=hostManager.link(m[1]);
+  if(req.method==='POST'&&m[2]==='remove'){hostManager.remove(m[1]);sendJson(res,200,{ok:true});return true;}
+  if(req.method==='POST'&&m[2]==='hello'){sendJson(res,200,await link.hello());return true;}
+  if(req.method==='GET'&&m[2]?.startsWith('commands/')){sendJson(res,200,await link.commandStatus(m[2].slice(9)));return true;}
+  if(req.method==='POST'&&m[2]==='projects'){
+   const commandId=typeof req.headers['x-command-id']==='string'&&/^[A-Za-z0-9._~-]{1,100}$/.test(req.headers['x-command-id'])?req.headers['x-command-id']:undefined;
+   const r=await link.request({method:'POST',path:'/bibilen/api/projects',body:await readJson(req),commandId,actor});
+   res.writeHead(r.status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-AH-Command':r.commandId??''});res.end(r.body);return true;
+  }
+  if(req.method==='GET'&&!m[2]){sendJson(res,200,link.snapshot());return true;}
+  sendJson(res,404,{error:'Bulunamadı.'});return true;
+ }catch(error){const status=error?.code==='ambiguous_result'?502:(error?.code?.startsWith?.('host_')||error?.code==='sandbox_unavailable')?503:400;sendJson(res,status,{error:error?.code??error?.message??'İşlem tamamlanamadı.',...(error?.commandId?{commandId:error.commandId}:{}),...(error?.hostStatus?{hostStatus:error.hostStatus}:{})});return true;}
+}
 async function handleApi(req,res,url){
   const operator=accessPolicy.canWrite(req.headers);
   try{
+    if(hostManager&&await handleHostApi(req,res,url,operator))return true;
     if(!operator||url.pathname.startsWith('/bibilen/api/viewer/'))return await handleObserverApi(req,res,url);
     if(!['GET','POST'].includes(req.method)){sendJson(res,405,{error:'Desteklenmeyen HTTP yöntemi.'});return true;}
     if(req.method==='GET'&&url.pathname==='/bibilen/api/session-catalog'){sendJson(res,200,await sessionCatalog.list());return true;}
     const catalogMatch=url.pathname.match(/^\/bibilen\/api\/session-catalog\/([^/]+)\/transcript$/);
     if(req.method==='GET'&&catalogMatch){sendJson(res,200,await sessionCatalog.transcript(decodeURIComponent(catalogMatch[1]),url.searchParams.has('before')?url.searchParams.get('before'):undefined));return true;}
-    if(req.method==='GET'&&url.pathname==='/bibilen/api/projects'){sendJson(res,200,{...projects.publicState({paths:operator}),workspaces:projects.publicState({paths:operator}).workspaces.map(w=>({...w,runtime:runtimes.has(w.id)&&!runtimes.get(w.id).nativeFailed?'active':'unavailable'})),admission:admission.state()});return true;}
+    if(req.method==='GET'&&url.pathname==='/bibilen/api/projects'){const remoteProjects=hostManager?hostManager.publicProjects():{projects:[],workspaces:[]};const localState=projects.publicState({paths:operator});sendJson(res,200,{...localState,projects:[...localState.projects,...remoteProjects.projects],workspaces:[...localState.workspaces.map(w=>({...w,runtime:runtimes.has(w.id)&&!runtimes.get(w.id).nativeFailed?'active':'unavailable'})),...remoteProjects.workspaces],admission:admission.state()});return true;}
     if(req.method==='POST'&&url.pathname==='/bibilen/api/projects'){
       if(!operator){sendJson(res,403,{error:'Projeyi yalnızca yönetici ekleyebilir.'});return true;}
       if(projects.data.workspaces.length>=20)throw new Error('En fazla 20 çalışma ortamı kaydedilebilir.');
@@ -250,7 +289,7 @@ async function handleApi(req,res,url){
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/portfolio'){
       const items=await Promise.all(projects.data.workspaces.map(async w=>{const r=runtimes.get(w.id);const p=projects.data.projects.find(p=>p.id===w.projectId);let work=null;try{if(r)work=await r.workTracker.overview();}catch{}return {workspaceId:w.id,projectId:w.projectId,name:p.name,available:!!r&&!r.nativeFailed,tasks:r?r.taskManager.publicState(operator).tasks:[],inventoryAvailable:work?.inventoryAvailable??false,connectedSessions:work?.totalLiveSessions??work?.groups.length??0,workingMembers:work?.groups.flatMap(g=>g.members.filter(m=>m.liveState==='running').map(m=>({sessionId:g.sessionId,id:m.id,label:m.label,role:m.role})))??[]};}));
-      sendJson(res,200,{items,admission:admission.state()});return true;
+      sendJson(res,200,{items:[...items,...(hostManager?await hostManager.portfolio():[])],admission:admission.state()});return true;
     }
     if(req.method==='GET'&&url.pathname==='/bibilen/api/backups/export'){
       if(!operator){sendJson(res,403,{error:'Yedekleri yalnızca yönetici indirebilir.'});return true;}
@@ -375,7 +414,7 @@ async function handleApi(req,res,url){
     sendJson(res,404,{error:'Bulunamadı.'});return true;
   }catch(error){sendJson(res,400,{error:error?.message??'İşlem tamamlanamadı.'});return true;}
 }
-const server=http.createServer(async(req,res)=>{
+const serverListener=async(req,res)=>{
   if(req.url?.startsWith('/bibilen/guard/check?')&&req.method==='POST'){try{const u=new URL(req.url,'http://localhost');const r=getRuntime(u.searchParams.get('workspaceId'));if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||!r.guard.authenticates(String(req.headers.authorization??'').replace(/^Bearer /,''))){sendJson(res,403,{error:'Forbidden'});return;}sendJson(res,200,await r.guard.check(await readJson(req)));}catch{sendJson(res,400,{error:'Guard unavailable'});}return;}
   if(!validHost(req.headers.host)){res.writeHead(403);res.end('Forbidden host');return;}
   const url=new URL(req.url,`http://${req.headers.host}`);
@@ -384,11 +423,13 @@ const server=http.createServer(async(req,res)=>{
   if(!accessPolicy.canWrite(req.headers)||url.pathname==='/observer.html'){serveObserverPage(req,res,url);return;}
   const proxy=http.request({hostname:'127.0.0.1',port:nativePort,path:req.url,method:req.method,headers:req.headers},up=>{res.writeHead(up.statusCode??502,up.headers);up.pipe(res);});
   proxy.on('error',()=>{if(!res.headersSent)res.writeHead(503);res.end('Ofis hazırlanıyor. Birkaç saniye sonra yenile.');});req.pipe(proxy);
-});
-server.on('upgrade',(req,socket,head)=>{
+};
+const server=http.createServer(hostGuard?hostGuard.wrap(serverListener):serverListener);
+const upgradeListener=(req,socket,head)=>{
   let path;try{path=new URL(req.url,'http://localhost').pathname;}catch{socket.destroy();return;}
   if(!validHost(req.headers.host)||!validOrigin(req.headers)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   if(!accessPolicy.canWrite(req.headers)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
+  if(hostManager){const scope=new URL(req.url,'http://localhost').searchParams.get('workspaceId')??req.headers['x-workspace-id'];if(scope&&hostManager.isRemote(scope)){hostManager.upgrade(req,socket,head,{actor:accessPolicy.identity(req.headers)??''});return;}}
   try{req.bibilenRuntime=getRuntime(workspaceScope(new URL(req.url,'http://localhost'),req.headers,defaultWorkspace.id));}catch{socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');return;}
   const {controller,taskManager}=req.bibilenRuntime;
   if(path==='/bibilen-session-terminal'){
@@ -412,7 +453,8 @@ server.on('upgrade',(req,socket,head)=>{
   if(!validOrigin(req.headers)){socket.destroy();return;}
   req.bibilenViewer=!accessPolicy.canWrite(req.headers);
   officeSockets.handleUpgrade(req,socket,head,ws=>officeSockets.emit('connection',ws,req));
-});
+};
+server.on('upgrade',hostGuard?hostGuard.wrapUpgrade(upgradeListener):upgradeListener);
 async function recoverPresence(runtime){
  const {presenceSocket,sessionManager}=runtime;
  if(runtime.presenceBusy||presenceSocket?.readyState!==WebSocket.OPEN)return;runtime.presenceBusy=true;
@@ -425,6 +467,6 @@ function connectPresence(runtime){
  socket.on('error',()=>{});socket.on('close',()=>{if(!stopping&&!runtime.nativeFailed)setTimeout(()=>connectPresence(runtime),2000).unref();});
 }
 const presenceTimer=setInterval(()=>{for(const runtime of runtimes.values())void recoverPresence(runtime);},5000);
-server.listen(gatewayPort,'127.0.0.1',()=>console.log('BiBilen office gateway: http://127.0.0.1:3100 (private Tailscale access)'));
-function stop(){if(stopping)return;stopping=true;clearInterval(backupTimer);clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
+server.listen(gatewayPort,'127.0.0.1',()=>{console.log('BiBilen office gateway: http://127.0.0.1:3100 (private Tailscale access)'+(hostMode?' [host mode]':''));hostManager?.start();});
+function stop(){if(stopping)return;stopping=true;hostManager?.stop();clearInterval(backupTimer);clearInterval(presenceTimer);clearInterval(noticeTimer);clearInterval(slackTimer);clearInterval(dailyTimer);for(const r of runtimes.values()){r.presenceSocket?.close();r.taskManager.stopPolling();r.sessionManager.close();r.terminal?.kill();for(const attached of r.taskTerminals.values())attached.kill();r.native.kill('SIGTERM');}server.close();setTimeout(()=>process.exit(0),1000).unref();}
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
