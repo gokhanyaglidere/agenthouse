@@ -90,3 +90,11 @@ Repeated gap rounds completed at the owner's request. Three fix rounds followed
 by a fourth review with zero new reproduced findings. See
 [round-by-round evidence](gap-rounds-2026-10-12.md). Final regression total: 270.
 Windows connection and physical-device acceptance remain explicitly deferred.
+
+Evidence-based feature additions completed: persistent delivery decisions,
+conditional task starts, scoped project-decision snapshots, optional elapsed task
+limits, and a non-executing startup inventory. Existing delivery/recovery features
+were extended or retained rather than duplicated. See
+[evidence and validation](evidence-based-additions-2026-10-13.md). 280 tests passed.
+Task-specific token/cost enforcement was not added because reliable measurement
+is not established; existing account-level quota display remains authoritative.

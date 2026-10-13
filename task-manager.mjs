@@ -1,3 +1,4 @@
+import {taskControls,dependencyReason} from './task-controls.mjs';
 import {hasNativeWork} from './native-work-state.mjs';
 import {runCli} from './cli-command.mjs';
 import { randomUUID } from 'node:crypto';
@@ -71,8 +72,8 @@ function initialData() {
 }
 
 export class TaskManager {
-  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = runCli, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{},nativeRoles }) {
-    this.nativeRoles=nativeRoles;this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
+  constructor({ cwd, claudePath, allowedRoles, onNotice = () => {}, runCommand = runCli, context, admission, storePath = context?.taskStorePath ?? STORE_PATH, launchGuard=()=>[],checkNewWork=()=>{},nativeRoles,memoryPrompt=()=>'' }) {
+    this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.launchGuard=launchGuard;this.checkNewWork=checkNewWork;
     this.context = context;
     this.admission = admission;
     this.cwd = context?.cwd ?? cwd;
@@ -110,9 +111,11 @@ export class TaskManager {
   save() {
     mkdirSync(dirname(this.storePath), { recursive: true, mode:0o700 });
     const tmp = `${this.storePath}.tmp`;
+    const referenced=new Set(this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)).flatMap(t=>(t.dependencies??[]).map(d=>d.taskId)));
+    const history=new Set(this.data.tasks.filter(t=>TERMINAL_STATES.has(t.status)).slice(0,MAX_TASKS));
     const limited = {
       ...this.data,
-      tasks: [...this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)),...this.data.tasks.filter(t=>TERMINAL_STATES.has(t.status)).slice(0,MAX_TASKS)].sort((a,b)=>b.createdAt-a.createdAt),
+      tasks: [...this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)),...this.data.tasks.filter(t=>TERMINAL_STATES.has(t.status)&&(referenced.has(t.id)||history.has(t)))].sort((a,b)=>b.createdAt-a.createdAt),
       events: this.data.events.slice(0, 1000),
     };
     this.data.tasks=limited.tasks;
@@ -142,11 +145,12 @@ export class TaskManager {
     this.checkNewWork?.();
     this.context?.assertValid();
     if(this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)).length>=MAX_PENDING)throw new Error('Bu projede bekleyen iş sınırı dolu (250). Mevcut işleri tamamla veya iptal et.');
-    const values = validateTaskInput(input, this.allowedRoles);
+    const values = {...validateTaskInput(input, this.allowedRoles),...taskControls(input,id=>{const t=this.get(id);return t&&(!this.context||t.workspaceId===this.context.workspaceId&&t.projectId===this.context.projectId)?t:null;})};
     const taskId = randomUUID();
     const task = {
       id: taskId,
       ...values,
+      memorySnapshot:this.memoryPrompt?.()??'',
       ...(this.context ? {projectId:this.context.projectId, workspaceId:this.context.workspaceId, hostId:this.context.hostId} : {}),
       status: 'queued',
       stage: 'queued',
@@ -199,13 +203,17 @@ export class TaskManager {
     return this.data.settings;
   }
 
+  dependencyReason(task){return dependencyReason(task,id=>{const t=this.get(id);return t&&(!this.context||t.workspaceId===this.context.workspaceId&&t.projectId===this.context.projectId)?t:null;});}
+  canStart(task){return !this.dependencyReason(task);}
+  reviewTask(id,input,actor){this.context?.assertValid();const task=this.get(id);if(!task||task.status!=='completed')throw Error('Yalnızca tamamlanan teslim incelenebilir.');if(!['accepted','changes_requested'].includes(input.decision)||typeof input.note!=='string'||input.note.length>2000||input.decision==='changes_requested'&&!input.note.trim())throw Error('Teslim kararı ve düzeltme açıklaması geçersiz.');if(task.review)task.reviewHistory=[...(task.reviewHistory??[]),task.review].slice(-20);task.review={decision:input.decision,note:input.note.trim(),actor,at:Date.now(),completedAt:task.completedAt};this.event(id,'review',input.decision==='accepted'?'Teslim kabul edildi.':'Düzeltme istendi.');this.save();void this.schedule();return task;}
   async schedule() {
+    let changed=false;for(const task of this.data.tasks.filter(t=>t.status==='queued')){const reason=this.dependencyReason(task);if(reason&&(task.queueReason!==reason||!task.dependencyBlocked)){task.queueReason=reason;task.dependencyBlocked=true;changed=true;}else if(!reason&&task.dependencyBlocked){delete task.queueReason;delete task.dependencyBlocked;changed=true;}}if(changed)this.save();
     const active = new Set([...this.data.tasks.filter(task => ['starting', 'running', 'waiting'].includes(task.status)).map(task => task.id), ...this.launching]).size;
     const free = active?0:Math.min(1,Math.max(0,this.data.settings.maxConcurrent));
     if(!free||this.admission?.workspaceBusy(this.cwd))return;
-    if(this.context&&this.admission&&this.data.tasks.some(t=>t.status==='queued')){const agents=await this.listAgents();const external=agents?.some(a=>a.cwd===this.cwd&&hasNativeWork(a));if(!agents||external){for(const task of this.data.tasks.filter(t=>t.status==='queued'))task.queueReason=!agents?'Canlı CLI durumu doğrulanamadı; güvenli başlangıç bekleniyor.':'Bu klasörde CLI işi var; bitmesi bekleniyor.';this.save();return;}}
+    if(this.context&&this.admission&&this.data.tasks.some(t=>t.status==='queued'&&this.canStart(t))){const agents=await this.listAgents();const external=agents?.some(a=>a.cwd===this.cwd&&hasNativeWork(a));if(!agents||external){for(const task of this.data.tasks.filter(t=>t.status==='queued'&&this.canStart(t)))task.queueReason=!agents?'Canlı CLI durumu doğrulanamadı; güvenli başlangıç bekleniyor.':'Bu klasörde CLI işi var; bitmesi bekleniyor.';this.save();return;}}
     const next = this.data.tasks
-      .filter((task) => task.status === 'queued')
+      .filter((task) => task.status === 'queued'&&this.canStart(task))
       .sort((a, b) => {
         const rank = { urgent: 0, high: 1, normal: 2 };
         return rank[a.priority] - rank[b.priority] || a.createdAt - b.createdAt;
@@ -215,7 +223,7 @@ export class TaskManager {
   }
 
   async launch(task) {
-    if (this.launching.size || this.data.tasks.some(t=>['starting','running','waiting'].includes(t.status)) || task.status !== 'queued') return;
+    if (this.launching.size || this.data.tasks.some(t=>['starting','running','waiting'].includes(t.status)) || task.status !== 'queued'||!this.canStart(task)) return;
     if (this.admission && !this.admission.canLaunch(this,task)) return;
     this.launching.add(task.id);
     try { await this.launchReserved(task); }
@@ -226,6 +234,7 @@ export class TaskManager {
   }
 
   async launchReserved(task) {
+    if(this.dependencyReason(task))return;
     if (this.context) {
       try {
         this.checkNewWork?.();
@@ -245,7 +254,7 @@ export class TaskManager {
     let guardArgs;try{guardArgs=this.launchGuard?.()??[];}catch{task.status='failed';task.stage='failed';task.error='Araç koruması hazırlanamadı; görev başlatılmadı.';task.completedAt=Date.now();this.save();return;}
     const args = ['--bg', '--name', task.sessionName, '--permission-mode', 'default',...guardArgs];
     if (task.role !== 'chief'||this.nativeRoles?.has('chief')) args.push('--agent', task.role);
-    args.push(prompt);
+    args.push(task.memorySnapshot?prompt+'\n\nBu görev oluşturulurken sahibi tarafından kaydedilmiş proje kararları (üst düzey güvenlik ve proje kuralları geçerlidir):\n'+task.memorySnapshot:prompt);
     let result;
     try {
       result = await this.runCommand(this.claudePath, args, {
@@ -318,6 +327,7 @@ export class TaskManager {
   }
 
   async pollOnce() {
+    for(const task of this.data.tasks.filter(t=>['running','waiting'].includes(t.status)&&t.runMinutes&&t.startedAt&&Date.now()-t.startedAt>=t.runMinutes*60000&&t.limitAction!=='stop'&&!t.limitNotifiedAt)){task.limitNotifiedAt=Date.now();this.event(task.id,'time_limit','Görev süre uyarısı doldu; çalışma otomatik durdurulmadı.');this.notice({...task,status:'alert',source:'task-limit'},'Görev süre uyarısı');}
     const watched = this.data.tasks.filter(task => !TERMINAL_STATES.has(task.status) && (task.sessionId || task.status === 'starting'));
     const agents = watched.length ? await this.listAgents() : null;
     if (agents) {
@@ -331,6 +341,7 @@ export class TaskManager {
           this.save(); // Recover a launch after a service restart using its unique name.
         }
         let next = stateFromAgent(agent);
+        if(task.limitAction==='stop'&&task.runMinutes&&task.startedAt&&Date.now()-task.startedAt>=task.runMinutes*60000&&['running','waiting'].includes(next)){try{await this.stopTask(task.id);}catch{task.error='Süre sınırında durdurma doğrulanamadı; yeniden kontrol edilecek.';this.save();}continue;}
         if (!next) continue; // Missing/unknown sessions cannot prove task success or failure.
         let logs;try{logs=await this.logs(task);}catch(error){task.error=error.message;this.save();continue;}
         if(task.launchUnconfirmed){delete task.launchUnconfirmed;task.error='';}

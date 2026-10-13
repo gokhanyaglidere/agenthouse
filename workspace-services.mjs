@@ -8,7 +8,7 @@ export class Admission {
   if(this.pendingRecovery.size||this.active()>=this.limit||this.workspaceBusy(manager.cwd))return false;
   const candidates=[...this.managers].flatMap(m=>{
    const active=new Set([...m.data.tasks.filter(t=>['starting','running','waiting'].includes(t.status)).map(t=>t.id),...m.launching]).size;
-   return active<m.data.settings.maxConcurrent&&!this.workspaceBusy(m.cwd)?m.data.tasks.filter(t=>t.status==='queued').map(t=>({m,t})):[];
+   return active<m.data.settings.maxConcurrent&&!this.workspaceBusy(m.cwd)?m.data.tasks.filter(t=>t.status==='queued'&&(!m.canStart||m.canStart(t))).map(t=>({m,t})):[];
   }).sort((a,b)=>({urgent:0,high:1,normal:2}[a.t.priority]-{urgent:0,high:1,normal:2}[b.t.priority])||a.t.createdAt-b.t.createdAt||a.t.id.localeCompare(b.t.id));
   return candidates[0]?.m===manager&&candidates[0]?.t===task;
  }

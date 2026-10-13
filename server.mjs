@@ -1,3 +1,4 @@
+import {ProjectContext} from './project-context.mjs';
 import {ProjectCapabilities} from './project-capabilities.mjs';
 import {resolveSession} from './session-identity.mjs';
 import {ObserverSharing,observerItem} from './observer-sharing.mjs';
@@ -77,7 +78,8 @@ function getRuntime(workspaceId){
  const policy=new ProjectPolicy(scopedPath('project-policy'));
  const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
  const launchGuard=()=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode});
- const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
+ const knowledge=new ProjectContext(context);
+ const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
  const spawnTerminal=(args,{session}={})=>{
   context.assertValid();
@@ -87,12 +89,12 @@ function getRuntime(workspaceId){
   admission.reserve(key,context.cwd);
   try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
- const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,nativeRoles,refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
+ const sessionManager=new SessionManager({cwd:context.cwd,context,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:()=>taskManager.listAgents(),
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
- const runtime={capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd,{assertValid:()=>context.assertValid()}),
+ const runtime={knowledge,capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd,{assertValid:()=>context.assertValid()}),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),
   integrations:new Integrations({cwd:context.cwd,command:claudePath}),slackAlarms,
   dailyReports:new DailyReports({slack:slackAlarms,tasks:taskManager,path:scopedPath('daily-reports')}),
@@ -343,6 +345,9 @@ async function handleApi(req,res,url){
       if(executionHealth.state.status==='blocked'){sendJson(res,409,{error:executionHealth.state.message});return true;}
       const task=taskManager.create(await readJson(req));sendJson(res,201,{task});return true;
     }
+    const reviewMatch=url.pathname.match(/^\/bibilen\/api\/tasks\/([^/]+)\/review$/);
+    if(req.method==='POST'&&reviewMatch){sendJson(res,200,{task:taskManager.reviewTask(reviewMatch[1],await readJson(req),req.headers['tailscale-user-login']??'local-owner')});return true;}
+    if(url.pathname==='/bibilen/api/project-context'||url.pathname.startsWith('/bibilen/api/project-context/')){if(!operator){sendJson(res,403,{error:'Proje kararlarını yalnızca yönetici görebilir.'});return true;}if(req.method==='GET'&&url.pathname==='/bibilen/api/project-context'){sendJson(res,200,runtime.knowledge.state());return true;}if(req.method==='POST'&&url.pathname==='/bibilen/api/project-context'){sendJson(res,200,runtime.knowledge.add(await readJson(req),req.headers['tailscale-user-login']??'local-owner'));return true;}const archive=url.pathname.match(/^\/bibilen\/api\/project-context\/([^/]+)\/archive$/);if(req.method==='POST'&&archive){sendJson(res,200,runtime.knowledge.archive(archive[1],req.headers['tailscale-user-login']??'local-owner'));return true;}sendJson(res,405,{error:'Desteklenmeyen işlem.'});return true;}
     const stopMatch=url.pathname.match(/^\/bibilen\/api\/tasks\/([^/]+)\/stop$/);
     if(req.method==='POST'&&stopMatch){sendJson(res,200,{task:await taskManager.stopTask(stopMatch[1])});return true;}
     const logMatch=url.pathname.match(/^\/bibilen\/api\/tasks\/([^/]+)\/logs$/);

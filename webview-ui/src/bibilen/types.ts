@@ -4,7 +4,7 @@ export interface BibilenTask {
   id:string;title:string;prompt?:string;role:string;priority:Priority;status:TaskStatus;
   stage?:'queued'|'starting'|'researching'|'coding'|'testing'|'working'|'waiting'|'done'|'failed'|'stopped';
   createdAt:number;startedAt:number|null;completedAt:number|null;sessionId?:string|null;
-  summary?:string;error?:string;queueReason?:string;
+  summary?:string;error?:string;queueReason?:string;dependencies?:Array<{taskId:string;condition:'completed'|'accepted'}>;runMinutes?:number|null;limitAction?:'notify'|'stop';limitNotifiedAt?:number;review?:{decision:'accepted'|'changes_requested';note:string;actor:string;at:number};
 }
 export interface TaskEvent {id:string;taskId:string|null;type:string;message:string;at:number}
 export interface CommandState {

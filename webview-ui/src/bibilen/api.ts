@@ -16,7 +16,7 @@ async function request<T>(path:string,init:RequestInit={}):Promise<T>{
 }
 export const getState=()=>request<CommandState>('state');
 export const checkExecution=()=>request<{execution:ExecutionStatus}>('execution-check',{method:'POST'});
-export const createTask=(input:{title:string;prompt:string;role:string;priority:Priority})=>request<{task:BibilenTask}>('tasks',{method:'POST',body:JSON.stringify(input)});
+export const createTask=(input:{title:string;prompt:string;role:string;priority:Priority;dependencies?:Array<{taskId:string;condition:'completed'|'accepted'}>;runMinutes?:number|null;limitAction?:'notify'|'stop'})=>request<{task:BibilenTask}>('tasks',{method:'POST',body:JSON.stringify(input)});
 export const stopTask=(id:string)=>request<{task:BibilenTask}>(`tasks/${id}/stop`,{method:'POST'});
 export const getTaskLogs=(id:string)=>request<{logs:string}>(`tasks/${id}/logs`);
 export const updateSettings=(maxConcurrent:number)=>request<{settings:{maxConcurrent:number}}>('settings',{method:'POST',body:JSON.stringify({maxConcurrent})});
@@ -113,3 +113,9 @@ export const removeObserverItem=(id:string)=>request<SharingState>(`sharing/item
 
 export interface CapabilityInventory{workspaceId?:string;projectId?:string;hostId?:string;revision:string;scannedAt:number;agents:Array<{key:string;name:string;description:string;group?:string;skills:string[];skillLinks?:Array<{name:string;available:boolean;reason?:string|null}>}>;skills:Array<SkillChoice&{scope:string;native:boolean}>;diagnostics:Array<{path:string;message:string}>;instructions:string[];}
 export const getCapabilities=()=>request<CapabilityInventory>('capabilities');
+
+export const reviewTask=(id:string,decision:string,note:string)=>request<{task:BibilenTask}>(`tasks/${id}/review`,{method:'POST',body:JSON.stringify({decision,note})});
+export interface ProjectContextState{decisions:Array<{id:string;text:string;active:boolean;actor:string;at:number}>;readiness:{tools:Array<{name:string;available:boolean}>;manifests:string[];scripts:string[];warning:string|null;message:string};}
+export const getProjectContext=()=>request<ProjectContextState>('project-context');
+export const addProjectDecision=(text:string)=>request<ProjectContextState>('project-context',{method:'POST',body:JSON.stringify({text})});
+export const archiveProjectDecision=(id:string)=>request<ProjectContextState>(`project-context/${id}/archive`,{method:'POST',body:'{}'});

@@ -22,6 +22,8 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  const inventory=await waitUntil(async()=>{const r=await request('projects');if(r.status!==200)throw Error();return r.body;});
  const aid=inventory.defaultWorkspaceId;const registration=await request('projects',{body:{name:'Fixture B',path:b}});assert.equal(registration.status,201,output);const bid=registration.body.workspace.id;
  assert.notEqual(aid,bid);
+ const decision=await request('project-context',{workspace:aid,body:{text:'Project A approved decision'}});assert.equal(decision.status,200);assert.equal((await request('project-context',{workspace:bid})).body.decisions.length,0);assert.equal((await request('project-context',{workspace:aid,body:{text:'Denied viewer change'},headers:{host:'office.example',origin:'https://office.example','tailscale-user-login':'viewer@example.com'}})).status,403);
+
  assert.equal(registration.body.capabilities.agents[0].description,'Only project B');
  assert.equal((await request('roles',{workspace:aid})).body.agents[0].description,'Only project A');
  assert.equal((await request('roles',{workspace:bid})).body.agents[0].description,'Only project B');

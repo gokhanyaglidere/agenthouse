@@ -26,8 +26,8 @@ function stopExternalCli(agent){
  process.kill(agent.pid,'SIGTERM');
 }
 export class SessionManager{
- constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles}){
-  this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
+ constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles,memoryPrompt=()=>''}){
+  this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
   this.root=root??join(homedir(),'.claude','projects',this.cwd.replace(/[^a-zA-Z0-9]/g,'-'));
   this.storePath=storePath??context?.sessionStorePath??join(homedir(),'.pixel-agents','bibilen-sessions.json');
   try{this.saved=JSON.parse(readFileSync(this.storePath,'utf8')).sessions??{};}catch{this.saved={};}
@@ -93,7 +93,7 @@ export class SessionManager{
   const title=String(input?.title??'').trim();const role=String(input?.role??'chief');
   if(title.length<3||title.length>100)throw new Error('Konuşma adı 3–100 karakter olmalı.');
   if(!this.roles.has(role))throw new Error('Bilinmeyen uzman rolü.');
-  const id=randomUUID();this.saved[id]={title,role,options:sessionOptions(input.options),...(this.context?{projectId:this.context.projectId,workspaceId:this.context.workspaceId,hostId:this.context.hostId}:{}),createdAt:Date.now(),updatedAt:Date.now()};this.save();return {id,...this.saved[id]};
+  const id=randomUUID();this.saved[id]={title,role,memorySnapshot:this.memoryPrompt?.()??'',options:sessionOptions(input.options),...(this.context?{projectId:this.context.projectId,workspaceId:this.context.workspaceId,hostId:this.context.hostId}:{}),createdAt:Date.now(),updatedAt:Date.now()};this.save();return {id,...this.saved[id]};
  }
  async known(id){this.path(id);const found=(await this.list()).sessions.find(s=>s.id===id);if(!found)throw new Error('Bu projede oturum bulunamadı.');return found;}
  async transcript(id,before){
@@ -143,6 +143,7 @@ export class SessionManager{
     if(agent?.kind!=='background'&&inventory.agents.some(a=>a.sessionId!==id&&hasNativeWork(a)))throw Error('Bu klasörde çalışan CLI işi var; bitmesini bekle.');
     const args=agent?.kind==='background'?['attach',agent.id??id]:session.hasTranscript?['--resume',id,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])]:['--session-id',id,'--name',session.title,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])];
     if(!agent&&!session.hasTranscript){this.refreshRoles();if(session.role&&!this.roles.has(session.role))throw Error('Ajan tanımı artık bu projede yok; farklı bir ajan seç.');if(session.role&&(session.role!=='chief'||this.nativeRoles?.has('chief')))args.push('--agent',session.role);else args.push('--append-system-prompt',`${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Gerektiğinde .claude/agents içindeki uzmanları kullan.`);}
+    if(!agent&&this.saved[id]?.memorySnapshot){const note='\n\nSahibinin bu oturum oluşturulurken kaydettiği proje kararları (güvenlik ve CLAUDE.md kuralları geçerlidir):\n'+this.saved[id].memorySnapshot;const index=args.indexOf('--append-system-prompt');if(index>=0)args[index+1]+=note;else args.push('--append-system-prompt',note);}
     if(ws.readyState!==1)return;
     if(this.live.size>=5)throw new Error('Aynı anda en fazla 5 konuşma açık olabilir.');
     this.context?.assertValid();if(session.hasTranscript)this.assertTranscript(id);const terminal=this.spawnTerminal(args,{session});live={id,terminal,output:'',clients:new Set(),controller:null,background:agent?.kind==='background'};this.live.set(id,live);

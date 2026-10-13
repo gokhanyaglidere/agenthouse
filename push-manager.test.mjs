@@ -32,3 +32,4 @@ test('project mute suppresses only that project while preserving all panel recor
  assert.deepEqual(new PushManager({storageDir}).deliveryPreferences.mutedWorkspaces,['workspace-a']);
  assert.throws(()=>manager.updateDelivery({mutedWorkspaces:['../bad']}));
 });
+test('task time alerts have readable content and retain an exact task link',async t=>{const {manager}=fixture(t);await manager.send({...task,status:'alert',source:'task-limit',runMinutes:15},'Süre');const item=manager.state().items[0];assert.equal(item.title,'Görev süre uyarısı');assert.match(item.body,/15 dakikalık/);assert.equal(item.url,'/?view=tasks&task=task-1');assert.equal(item.body.includes('undefined'),false);});
