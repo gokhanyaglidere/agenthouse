@@ -10,8 +10,8 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 git fetch -q "$SRC" main
 git merge --ff-only FETCH_HEAD
-npm install --no-audit --no-fund
-npm install --prefix webview-ui --no-audit --no-fund
+npm ci --no-audit --no-fund
+npm ci --prefix webview-ui --no-audit --no-fund
 npm run build --prefix webview-ui
 node prepare-ui.mjs                      # required: patches the bundled office engine so every workspace gets its own engine
 grep -q BIBILEN_NATIVE_LAYOUT_PATH node_modules/pixel-agents/dist/cli.js || { echo "office engine patch missing"; exit 1; }
