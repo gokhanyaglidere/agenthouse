@@ -20,3 +20,12 @@ test('failed Windows query is unavailable and cannot masquerade as an empty live
  assert.equal(createWindowsInventory({projectsRoot:'/home/user/.claude/projects',platform:'linux'}),null);
  assert.equal(createWindowsInventory({projectsRoot:'/mnt/c/Users/Owner/.claude/projects',platform:'darwin'}),null);
 });
+test('Windows PowerShell 5.1 nested/single-object JSON is flattened and the script unrolls the parsed array',async()=>{
+ let script='';
+ const nested=async(command,args)=>{script=Buffer.from(args.at(-1),'base64').toString('utf16le');return {stdout:JSON.stringify([[agent,{...agent,sessionId:'87654321-1234-4234-8234-123456789012'}]])};};
+ const inventory=createWindowsInventory({projectsRoot:'/mnt/c/Users/Owner/.claude/projects',platform:'linux',execute:nested});
+ assert.equal((await inventory('/mnt/d/One-Line')).length,2);
+ assert.match(script,/ConvertFrom-Json \(\$raw -join "\n"\) \| ForEach-Object \{ \$_ \}/);
+ const single=createWindowsInventory({projectsRoot:'/mnt/c/Users/Owner/.claude/projects',platform:'linux',execute:async()=>({stdout:JSON.stringify(agent)})});
+ assert.equal((await single('/mnt/d/One-Line')).length,1);
+});
