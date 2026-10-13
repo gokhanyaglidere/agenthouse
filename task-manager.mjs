@@ -111,7 +111,7 @@ export class TaskManager {
   save() {
     mkdirSync(dirname(this.storePath), { recursive: true, mode:0o700 });
     const tmp = `${this.storePath}.tmp`;
-    const referenced=new Set(this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)).flatMap(t=>(t.dependencies??[]).map(d=>d.taskId)));
+    const referenced=new Set(this.data.tasks.filter(t=>!TERMINAL_STATES.has(t.status)).flatMap(t=>(Array.isArray(t.dependencies)?t.dependencies:[]).filter(d=>d&&typeof d.taskId==='string').map(d=>d.taskId)));
     const history=new Set(this.data.tasks.filter(t=>TERMINAL_STATES.has(t.status)).slice(0,MAX_TASKS));
     const limited = {
       ...this.data,
@@ -205,7 +205,7 @@ export class TaskManager {
 
   dependencyReason(task){return dependencyReason(task,id=>{const t=this.get(id);return t&&(!this.context||t.workspaceId===this.context.workspaceId&&t.projectId===this.context.projectId)?t:null;});}
   canStart(task){return !this.dependencyReason(task);}
-  reviewTask(id,input,actor){this.context?.assertValid();const task=this.get(id);if(!task||task.status!=='completed')throw Error('Yalnızca tamamlanan teslim incelenebilir.');if(!['accepted','changes_requested'].includes(input.decision)||typeof input.note!=='string'||input.note.length>2000||input.decision==='changes_requested'&&!input.note.trim())throw Error('Teslim kararı ve düzeltme açıklaması geçersiz.');if(task.review)task.reviewHistory=[...(task.reviewHistory??[]),task.review].slice(-20);task.review={decision:input.decision,note:input.note.trim(),actor,at:Date.now(),completedAt:task.completedAt};this.event(id,'review',input.decision==='accepted'?'Teslim kabul edildi.':'Düzeltme istendi.');this.save();void this.schedule();return task;}
+  reviewTask(id,input,actor){this.context?.assertValid();const task=this.get(id);if(task&&this.context&&(task.workspaceId!==this.context.workspaceId||task.projectId!==this.context.projectId))throw Error('Teslim bu projeye ait değil.');if(!task||task.status!=='completed')throw Error('Yalnızca tamamlanan teslim incelenebilir.');if(!['accepted','changes_requested'].includes(input.decision)||typeof input.note!=='string'||input.note.length>2000||input.decision==='changes_requested'&&!input.note.trim())throw Error('Teslim kararı ve düzeltme açıklaması geçersiz.');if(task.review)task.reviewHistory=[...(task.reviewHistory??[]),task.review].slice(-20);task.review={decision:input.decision,note:input.note.trim(),actor,at:Date.now(),completedAt:task.completedAt};this.event(id,'review',input.decision==='accepted'?'Teslim kabul edildi.':'Düzeltme istendi.');this.save();void this.schedule();return task;}
   async schedule() {
     let changed=false;for(const task of this.data.tasks.filter(t=>t.status==='queued')){const reason=this.dependencyReason(task);if(reason&&(task.queueReason!==reason||!task.dependencyBlocked)){task.queueReason=reason;task.dependencyBlocked=true;changed=true;}else if(!reason&&task.dependencyBlocked){delete task.queueReason;delete task.dependencyBlocked;changed=true;}}if(changed)this.save();
     const active = new Set([...this.data.tasks.filter(task => ['starting', 'running', 'waiting'].includes(task.status)).map(task => task.id), ...this.launching]).size;
