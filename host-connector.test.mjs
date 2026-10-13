@@ -350,3 +350,12 @@ test('a scoped signed envelope still cannot enumerate account-level host records
   for(const path of ['projects','portfolio','session-catalog','backups','sharing','viewer/projects']){const r=await t.link.request({method:'GET',path:'/bibilen/api/'+path+'?workspaceId=wsA',workspaceId:'wsA'});assert.equal(r.status,403,path);}
  }finally{await t.cleanup();}
 });
+
+test('pre-flight reports whether the per-project office engine patch is applied', () => {
+  const read = text => p => p === '/proc/version' ? 'microsoft' : text;
+  const base = {platform: 'linux', run: () => {}, stateDir: '/home/a/.pixel-agents'};
+  assert.equal(runPreflight({...base, readProc: read('... BIBILEN_NATIVE_LAYOUT_PATH ...'), cliPath: '/x/cli.js'}).officeEngine, 'patched');
+  assert.equal(runPreflight({...base, readProc: read('upstream only'), cliPath: '/x/cli.js'}).officeEngine, 'unpatched');
+  assert.equal(runPreflight({...base, readProc: p => {if (p === '/proc/version') return 'microsoft'; throw new Error('ENOENT');}, cliPath: '/x/cli.js'}).officeEngine, 'missing');
+  assert.equal(runPreflight(base).officeEngine, 'unknown');
+});

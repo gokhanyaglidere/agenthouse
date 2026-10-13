@@ -35,3 +35,11 @@ Deploy the merged main to WSL (including npm dependencies), then investigate nat
 After the Windows operator repaired the native office installation, a fresh Mac-origin signed bridge test received `layoutLoaded` successfully. The host remains online with sandbox prerequisites ready and the allowlist still contains only One-Line. The private browser selected `One-Line · Windows WSL` and rendered the office and garden; the missing-layout placeholder is gone. No task, session or login command was submitted. Local screenshot: design/verification/windows-office-confirmed-2026-10-13.png.
 
 This supersedes the missing-layout issue above. WSL interactive Claude authentication and an owner-approved model execution test are still unverified. Other documented cross-host limits remain.
+
+## Follow-up: office-engine fix and first execution attempt
+
+Merged windows-office-engine-fix51c76ddd8f34ccca80b23145be7f17961c248dc4. Its deployment helper originally reset main with checkout-B; changed it to reject dirty worktrees and use fast-forward-only update of the current branch. Bash syntax and gateway syntax checked;215 backend tests passed. No UI source changed in this follow-up; previously105 UI tests passed.
+
+Pre-execution Mac verification: signed hello online, sandboxReady true, officeEngine patched, layoutLoaded received through the central websocket bridge.
+
+The panel retained an old blocked execution check despite the reported WSL login. One explicit UI connection probe was run (small paid Claude response, no tools/persistence); it returned ready. Then exactly one UI task was submitted: “Mac–Windows bağlantı testi · dosya sayımı”, restricted to `find . -maxdepth 1 -type f | wc -l`, no file content reads/writes, networking, git, package installs or subagents. Task55eb0d24-e6dc-401f-a16c-b1254fa6291a failed before getting a session id, with workspace-not-trusted for `/mnt/d/One-Line`. No count result was produced and no retry was submitted. Failure is visible in the remote project's History screen; screenshot windows-trust-block-2026-10-13.png. The owner must accept Claude's interactive project-trust prompt as ahost before a new execution test. Account authentication is now independently confirmed by the successful connection probe; project trust is the remaining execution prerequisite.
