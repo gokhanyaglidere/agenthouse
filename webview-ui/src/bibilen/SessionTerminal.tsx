@@ -35,7 +35,7 @@ export function SessionTerminal({session,close,onSessionChange,embedded=false}:{
   const ws=terminalChannel(url,{
    open:()=>{error=false;terminal.reset();setStatus('Oturum doğrulanıyor…');},
    message:text=>{let message;try{message=JSON.parse(text);}catch{}
-    if(message?.type==='control'){writable=message.writable;setCanWrite(writable);setStatus(writable?'Canlı oturum · yazabilirsin':'İzleme modu · başka bir panel kontrol ediyor');terminal.options.disableStdin=!writable;if(writable){fit.fit();ws.send({type:'resize',cols:terminal.cols,rows:terminal.rows});}return;}
+    if(message?.type==='control'){writable=message.writable;setCanWrite(writable);setStatus(writable?(message.conversationOnly?'Sohbet modu · yazabilirsin; dosya/kod araçları kapalı':'Canlı oturum · yazabilirsin'):'İzleme modu · başka bir panel kontrol ediyor');terminal.options.disableStdin=!writable;if(writable){fit.fit();ws.send({type:'resize',cols:terminal.cols,rows:terminal.rows});}return;}
     if(message?.type==='error'){error=true;setStatus(message.message);return;}
     if(message?.type==='session'){onSessionChange(message.id,message.title);return;}
     terminal.write(text);

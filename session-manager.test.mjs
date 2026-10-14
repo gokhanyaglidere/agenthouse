@@ -33,3 +33,20 @@ test('resuming managed history uses stored preferences but background attach sta
 test('new session honors project-defined chief instead of injecting coordinator instructions',async t=>{const f=fixture(t);f.manager.nativeRoles=new Set(['chief']);const session=f.manager.create({title:'Native coordinator',role:'chief'});await f.manager.connect(session.id,new Socket());const args=f.launches[0].args;assert.equal(args[args.indexOf('--agent')+1],'chief');assert.equal(args.includes('--append-system-prompt'),false);});
 test('unknown native state with a busy process blocks starting another session',async t=>{const f=fixture(t),session=f.manager.create({title:'Queued conversation'});f.setAgents([{cwd:'/project',sessionId:OTHER,kind:'interactive',state:'unknown',status:'busy'}]);await assert.rejects(f.manager.connect(session.id,new Socket()),/çalışan CLI işi/);assert.equal(f.launches.length,0);});
 test('owner decision snapshots apply to new sessions and same-history resume without taking new decisions',async t=>{const f=fixture(t);let decision='Approved first decision';f.manager.memoryPrompt=()=>decision;const session=f.manager.create({title:'Project decisions'});decision='Changed later';await f.manager.connect(session.id,new Socket());assert.ok(f.launches[0].args.at(-1).includes('Approved first decision'));f.manager.stopOwned(session.id);f.transcript(session.id);await f.manager.connect(session.id,new Socket());assert.ok(f.launches[1].args.includes('--resume'));assert.ok(f.launches[1].args.at(-1).includes('Approved first decision'));assert.equal(f.launches[1].args.at(-1).includes('Changed later'),false);});
+
+test('guarded conversation-only terminals open while another CLI works and never upgrade in place',async t=>{
+ const f=fixture(t);f.manager.conversationOnlyWhenBusy=true;f.setAgents([{sessionId:OTHER,cwd:'/project',kind:'interactive',state:'busy'}]);
+ const session=f.manager.create({title:'Sohbet kontrol testi',role:'chief'});let launchContext;const spawn=f.manager.spawnTerminal;f.manager.spawnTerminal=(args,context)=>{launchContext=context;return spawn(args);};
+ await f.manager.connect(session.id,new Socket());assert.equal(launchContext.session.conversationOnly,true);assert.equal(f.manager.saved[session.id].conversationOnly,true);assert.equal(f.launches[0].args[f.launches[0].args.indexOf('--permission-mode')+1],'plan');
+ assert.equal((await f.manager.list()).sessions.find(s=>s.id===session.id).conversationOnly,true);
+ f.setAgents([]);await f.manager.connect(session.id,new Socket());assert.equal(f.launches.length,1);assert.equal(f.manager.saved[session.id].conversationOnly,true,'a live read-only process must not silently acquire tools');
+ f.manager.stopOwned(session.id);await f.manager.connect(session.id,new Socket());assert.equal(f.launches.length,2);assert.equal(launchContext.session.conversationOnly,false);
+});
+test('workspace ownership also forces conversation-only mode and failed launches roll back the mode marker',async t=>{
+ const f=fixture(t);f.manager.conversationOnlyWhenBusy=true;f.manager.workspaceBusy=()=>true;const session=f.manager.create({title:'Yerel slot testi',role:'chief'});
+ f.manager.spawnTerminal=()=>{throw Error('spawn failed');};await assert.rejects(f.manager.connect(session.id,new Socket()),/spawn failed/);assert.equal(f.manager.saved[session.id].conversationOnly,undefined);assert.equal(f.manager.live.size,0);
+});
+test('conversation-only marker survives session-manager recovery',async t=>{
+ const f=fixture(t);const session=f.manager.create({title:'Kurtarma sohbet testi',role:'chief'});f.manager.saved[session.id].conversationOnly=true;f.manager.save();
+ f.manager.restoreTerminals=async()=>[{id:session.id,terminal:{onData(){},onExit(){}}}];await f.manager.inventory();assert.equal((await f.manager.list()).sessions.find(s=>s.id===session.id).conversationOnly,true);
+});

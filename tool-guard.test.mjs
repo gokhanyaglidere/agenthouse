@@ -11,3 +11,10 @@ test('actual hook client uses documented decision JSON and denies an unavailable
 });
 
 test('policy revisions invalidate pending approvals and old hook clients',async t=>{const f=fixture(t);const p=f.guard.check(input('Bash',{command:'fixture'}));const id=f.guard.state().pending[0].id;f.set({toolRevision:123});assert.throws(()=>f.guard.decide(id,'allow'));f.guard.decide(id,'deny');await p;assert.equal((await f.guard.check(input('Read',{file_path:'src/a'}))).decision,'deny');});
+
+test('conversation-only launches disable model tools and both hook event types deny even when no guard server is reachable',async t=>{
+ const f=fixture(t);const {spawn}=await import('node:child_process');const args=f.guard.settings({node:process.execPath,script:join(process.cwd(),'tool-guard-client.mjs'),port:1,workspaceId:'fixture',mode:'guarded',conversationOnly:true});
+ assert.equal(args[args.indexOf('--tools')+1],'');assert.ok(args.includes('--restricted'));const settings=JSON.parse(readFileSync(args[args.indexOf('--settings')+1],'utf8'));assert.equal(settings.sandbox.failIfUnavailable,true);
+ const config=settings.hooks.PreToolUse[0].hooks[0].args[1];assert.equal(JSON.parse(readFileSync(config,'utf8')).conversationOnly,true);
+ for(const event of ['PreToolUse','PermissionRequest']){const out=await new Promise((resolve,reject)=>{const child=spawn(process.execPath,['tool-guard-client.mjs',config],{stdio:['pipe','pipe','pipe']});let text='';child.stdout.on('data',d=>text+=d);child.on('error',reject);child.on('exit',()=>{try{resolve(JSON.parse(text));}catch(e){reject(e);}});child.stdin.end(JSON.stringify({...input('Write',{file_path:'forbidden.txt',content:'never'}),hook_event_name:event}));});const result=out.hookSpecificOutput;assert.equal(event==='PreToolUse'?result.permissionDecision:result.decision.behavior,'deny');}
+});

@@ -89,7 +89,7 @@ function getRuntime(workspaceId){
  const taskTerminals=new Map();
  const policy=new ProjectPolicy(scopedPath('project-policy'));
  const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
- const launchGuard=()=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode});
+ const launchGuard=(conversationOnly=false)=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode,conversationOnly});
  const knowledge=new ProjectContext(context);
  const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
@@ -98,13 +98,13 @@ function getRuntime(workspaceId){
   if(args[0]==='attach'){const key=context.workspaceId+':attach:'+session.id;admission.reserveControl(key,context.cwd,session.taskId);try{const terminal=pty.spawn(claudePath,args,{name:'xterm-256color',cols:100,rows:32,cwd:context.cwd,env:{...process.env,TERM:'xterm-256color'}});terminal.onExit(()=>admission.releaseControl(key));return terminal;}catch(error){admission.releaseControl(key);throw error;}}
   const id=args[args.indexOf(args.includes('--session-id')?'--session-id':'--resume')+1];
   const key=context.workspaceId+':'+id;
-  admission.reserve(key,context.cwd);
-  try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
+  admission.reserve(key,session?.conversationOnly?undefined:context.cwd);
+  try{const terminal=terminalBroker.create([...args,...launchGuard(session?.conversationOnly===true)]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
- const sessionManager=new SessionManager({cwd:context.cwd,context,windowsHandoff:hostGuard?.windowsHandoffFor(context.cwd),extraRoots:[hostGuard?.windowsRootFor(context.cwd)].filter(Boolean),allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
+ const sessionManager=new SessionManager({cwd:context.cwd,context,conversationOnlyWhenBusy:true,workspaceBusy:()=>admission.workspaceBusy(context.cwd),windowsHandoff:hostGuard?.windowsHandoffFor(context.cwd),extraRoots:[hostGuard?.windowsRootFor(context.cwd)].filter(Boolean),allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
   listAgents:async({freshWindows=false}={})=>{const local=await taskManager.listAgents();if(!hostGuard)return local;const windows=await hostGuard.windowsAgentsFor(context.cwd,{fresh:freshWindows});if(!Array.isArray(local)||!Array.isArray(windows))return null;return [...local,...windows];},
-  restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
+  restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,sessionManager.saved[id]?.conversationOnly?undefined:context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
  const runtime={knowledge,capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd,{assertValid:()=>context.assertValid()}),
   appearance:new Appearance({roles,path:scopedPath('character-looks')}),

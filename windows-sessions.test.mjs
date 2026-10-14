@@ -148,10 +148,10 @@ test('transferred history supports real PTY input/output and broker recovery wit
  const f=fixture();let terminal,second;try{
   const fake=join(f.dir,'echo-cli.cjs');writeFileSync(fake,"process.stdin.on('data',data=>process.stdout.write('reply:'+data.toString()));setInterval(()=>{},1000);");
   const brokerDir=mkdtempSync('/tmp/ah-handoff-');t.after(()=>rmSync(brokerDir,{recursive:true,force:true}));const broker=new TerminalBroker({cwd:f.dir,command:process.execPath,storageDir:brokerDir});
-  f.manager.windowsHandoff=async()=>{};await f.manager.takeover(ID);f.manager.spawnTerminal=args=>{terminal=broker.create([fake,...args]);return terminal;};
+  f.manager.windowsHandoff=async()=>{};f.manager.conversationOnlyWhenBusy=true;f.manager.listAgents=async()=>[{sessionId:FRESH,cwd:f.manager.cwd,state:'busy',kind:'interactive'}];await f.manager.takeover(ID);f.manager.spawnTerminal=(args,context)=>{assert.equal(context.session.conversationOnly,true);terminal=broker.create([fake,...args]);return terminal;};
   class Socket extends EventEmitter{readyState=1;sent=[];send(data){this.sent.push(data);this.emit('output');}close(){this.readyState=3;this.emit('close');}}
   const until=async predicate=>{const end=Date.now()+6000;while(!predicate()){if(Date.now()>end)throw Error('terminal scenario timed out');await new Promise(r=>setTimeout(r,20));}};
-  const ws=new Socket();await f.manager.connect(ID,ws);await until(()=>terminal.pid);ws.emit('message',JSON.stringify({type:'input',data:'ping\n'}));await until(()=>ws.sent.some(s=>String(s).includes('reply:ping')));
+  const ws=new Socket();await f.manager.connect(ID,ws);await until(()=>terminal.pid);assert.equal(ws.sent.some(s=>String(s).includes('\"conversationOnly\":true')),true);ws.emit('message',JSON.stringify({type:'input',data:'ping\n'}));await until(()=>ws.sent.some(s=>String(s).includes('reply:ping')));
   f.manager.close();await new Promise(r=>setTimeout(r,100));
   second=new SessionManager({cwd:f.manager.cwd,root:f.own,extraRoots:[f.win],storePath:f.manager.storePath,allowedRoles:new Set(['chief']),listAgents:async()=>[],restoreTerminals:()=>broker.recover(),spawnTerminal:()=>{throw Error('recovery must not create a duplicate process');}});
   const next=new Socket();await second.connect(ID,next);assert.equal(second.live.size,1);next.emit('message',JSON.stringify({type:'input',data:'recovered\n'}));await until(()=>next.sent.some(s=>String(s).includes('reply:recovered')));
