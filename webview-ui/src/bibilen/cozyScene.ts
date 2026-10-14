@@ -1,13 +1,15 @@
+import {paintPlazaInterior} from './modernPlaza.js';
 import {PARTITION,doorGeometry} from './partition-style.js';
 import {motionEnabled} from './motion.js';
 import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PAVING,GARDEN_TERRACE,EXTERIOR_APPROACHES,POND,WORK_TEAMS,type CozyRoom} from './layouts.js';
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
 import {getCachedSprite} from '../office/sprites/spriteCache.js';
 
-let scenery:HTMLCanvasElement|null=null,lastReady=false;
-export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,zoom:number){
+let scenery:HTMLCanvasElement|null=null,lastReady=false,lastPlaza=false;
+export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,zoom:number,plaza=false){
  const ready=Boolean(getCatalogEntry('BB_WALL_SINK'));
- if(!scenery||ready!==lastReady){
+ if(!scenery||ready!==lastReady||plaza!==lastPlaza){
+  lastPlaza=plaza;
   lastReady=ready;scenery=document.createElement('canvas');scenery.width=COZY_COLS*16;scenery.height=COZY_ROWS*16;
   const c=scenery.getContext('2d')!;c.imageSmoothingEnabled=false;
   const rect=(x:number,y:number,w:number,h:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -211,6 +213,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    rect((at-1)*16,55*16+13,48,6,'#ad9977');rect((at-1)*16+2,55*16+19,44,4,'#d9c4a0');
   }
   rect(45*16+5,56*16,38,10,'#7b6849');rect(45*16+7,56*16+2,34,1,'#c4ab78');
+  if(plaza)paintPlazaInterior(c);
  }
  ctx.imageSmoothingEnabled=false;ctx.drawImage(scenery,x,y,scenery.width*zoom,scenery.height*zoom);
  // Draw room names at display resolution rather than enlarging a 7px bitmap.
@@ -227,10 +230,10 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   const cx=Math.round(x+(room.left+room.right+1)*8*zoom),cy=Math.round(y+(room.top*16-7)*zoom);
   const width=Math.ceil(Math.max(...lines.map(line=>ctx.measureText(line).width)))+12*dpr,height=lines.length*fontSize*1.15+6*dpr;
   if(cx+width/2<0||cx-width/2>ctx.canvas.width||cy+height/2<0||cy-height/2>ctx.canvas.height)continue;
-  ctx.fillStyle='#405a48';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
-  ctx.fillStyle='#f0e6cc';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
-  ctx.fillStyle=room.locked?'#b68c4b':'#7da68a';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),3*dpr,height);
-  ctx.fillStyle='#263d2e';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
+  ctx.fillStyle=plaza?'#617a8b':'#405a48';ctx.fillRect(Math.round(cx-width/2)-dpr,Math.round(cy-height/2)-dpr,width+2*dpr,height+2*dpr);
+  ctx.fillStyle=plaza?'#172532':'#f0e6cc';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),width,height);
+  ctx.fillStyle=plaza?'#64c8c4':room.locked?'#b68c4b':'#7da68a';ctx.fillRect(Math.round(cx-width/2),Math.round(cy-height/2),3*dpr,height);
+  ctx.fillStyle=plaza?'#e4eef5':'#263d2e';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
  }
  ctx.restore();
  if(motionEnabled()){

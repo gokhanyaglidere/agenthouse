@@ -1,3 +1,5 @@
+import {isOneLineWorkspace,plazaFurniture} from '../../bibilen/modernPlaza.js';
+import {workspaceId} from '../../bibilen/workspace.js';
 import {furnitureActivity,playerActivity} from './furnitureActivities.js';
 import {renderCozyLighting} from '../../bibilen/cozyLighting.js';
 import {treeSway,renderDoors,renderWildlife} from '../../bibilen/environment.js';
@@ -368,7 +370,8 @@ export function renderScene(
 
   // Furniture
   for (const f of furniture) {
-    const cached = getCachedSprite(f.sprite, zoom);
+    const surface=isOneLineWorkspace(workspaceId)&&f.y<56*16?plazaFurniture(f.type,f.sprite):f.sprite;
+    const cached = getCachedSprite(surface, zoom);
     const fx = offsetX + f.x * zoom;
     const fy = offsetY + f.y * zoom;
     if (f.mirrored) {
@@ -926,7 +929,7 @@ export function renderFrame(
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
   const cozy=cols===COZY_COLS&&rows===COZY_ROWS&&areas?.some(a=>a.label==='Gökhan · CEO');
-  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom);renderCozyLighting(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters);}
+  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId));if(!isOneLineWorkspace(workspaceId))renderCozyLighting(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters,isOneLineWorkspace(workspaceId));}
 
   // Carpet layer (above floor, below seat indicators / furniture / characters)
   if (carpetTiles && carpetTiles.length > 0) {
