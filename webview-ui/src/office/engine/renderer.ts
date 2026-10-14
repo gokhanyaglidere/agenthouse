@@ -974,7 +974,7 @@ export function renderFrame(
     pets ?? [],
   );
 
-  if(cozy)renderWildlife(ctx,offsetX,offsetY,zoom);
+  if(cozy)renderWildlife(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId));
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);

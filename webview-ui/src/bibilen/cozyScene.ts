@@ -1,3 +1,4 @@
+import {paintPlazaCourtyard,renderCourtyardWater} from './plazaCourtyard.js';
 import {paintPlazaInterior} from './modernPlaza.js';
 import {PARTITION,doorGeometry} from './partition-style.js';
 import {motionEnabled} from './motion.js';
@@ -213,7 +214,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    rect((at-1)*16,55*16+13,48,6,'#ad9977');rect((at-1)*16+2,55*16+19,44,4,'#d9c4a0');
   }
   rect(45*16+5,56*16,38,10,'#7b6849');rect(45*16+7,56*16+2,34,1,'#c4ab78');
-  if(plaza)paintPlazaInterior(c);
+  if(plaza){paintPlazaInterior(c);paintPlazaCourtyard(c);}
  }
  ctx.imageSmoothingEnabled=false;ctx.drawImage(scenery,x,y,scenery.width*zoom,scenery.height*zoom);
  // Draw room names at display resolution rather than enlarging a 7px bitmap.
@@ -236,7 +237,8 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
   ctx.fillStyle=plaza?'#e4eef5':'#263d2e';lines.forEach((line,i)=>ctx.fillText(line,cx,cy+(i-(lines.length-1)/2)*fontSize*1.15));
  }
  ctx.restore();
- if(motionEnabled()){
+ if(plaza){renderCourtyardWater(ctx,x,y,zoom,motionEnabled()?performance.now()/1000:0);}
+ if(motionEnabled()&&!plaza){
   const time=performance.now()/1000;
   ctx.save();ctx.translate(x,y);ctx.scale(zoom,zoom);
   // Small surface highlights remain inside the pond; no walkability changes.

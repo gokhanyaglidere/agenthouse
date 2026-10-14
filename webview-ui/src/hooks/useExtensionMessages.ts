@@ -1,3 +1,4 @@
+import {projectLayout} from '../bibilen/projectLayout.js';
 import {ROSTER} from '../bibilen/roster.js';
 import {workspaceStorage} from '../bibilen/workspace.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -228,7 +229,8 @@ export function useExtensionMessages(
         const savedTheme=localStorage.getItem(workspaceStorage('bb-theme'));
         const theme:Theme=savedTheme==='night'||savedTheme==='garden'?savedTheme:'studio';
         const missingProjectSeats=!!rawLayout&&ROSTER.some(role=>!rawLayout.furniture.some(f=>f.uid==='seat-'+role.key));
-        const layout = rawLayout && [115,116,117,118,119].includes(rawLayout?.layoutRevision??0)&&!missingProjectSeats ? refineSavedLayout(rawLayout) : !rawLayout || missingProjectSeats || (rawLayout.layoutRevision ?? 0)<COZY_REVISION ? makeLayout(theme) : rawLayout.version === 1 ? migrateLayoutColors(rawLayout) : null;
+        const selectedLayout = rawLayout && [115,116,117,118,119].includes(rawLayout?.layoutRevision??0)&&!missingProjectSeats ? refineSavedLayout(rawLayout) : !rawLayout || missingProjectSeats || (rawLayout.layoutRevision ?? 0)<COZY_REVISION ? makeLayout(theme) : rawLayout.version === 1 ? migrateLayoutColors(rawLayout) : null;
+        const layout=selectedLayout?projectLayout(selectedLayout):null;
         if (layout) {
           os.rebuildFromLayout(layout);
           onLayoutLoaded?.(layout);

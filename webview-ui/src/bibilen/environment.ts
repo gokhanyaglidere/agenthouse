@@ -35,10 +35,10 @@ export function renderDoors(c:CanvasRenderingContext2D,x:number,y:number,zoom:nu
  }c.restore();
 }
 const cat=['..........o..o..','..........oooo..','..oo.....oooooo.','...oo.ooooooooo.','....ooooooooooo.','.....ooooooooo..','.....oo....oo...','.....oo....oo...'];
-export function renderWildlife(c:CanvasRenderingContext2D,x:number,y:number,zoom:number){
+export function renderWildlife(c:CanvasRenderingContext2D,x:number,y:number,zoom:number,plaza=false){
  const moving=motionEnabled(),time=moving?performance.now()/1000:0,level=motionLevel();c.save();c.translate(x,y);c.scale(zoom,zoom);
  // Decorative wildlife stays in the garden. It never creates agent activity or obstacles.
- const phase=time%32,progress=Math.min(1,(phase%16)/12),cx=10*16+progress*10*16,cy=63*16+4;const facing=phase<16?1:-1;
+ const phase=time%32,progress=Math.min(1,(phase%16)/12),cx=10*16+progress*10*16,cy=(plaza?69:63)*16+4;const facing=phase<16?1:-1;
  c.save();c.translate(Math.round(phase<16?cx:30*16-cx),cy);c.scale(facing*1.5,1.5);
  c.fillStyle='#41503b44';c.fillRect(3,7,13,3);
  for(let row=0;row<cat.length;row++)for(let col=0;col<cat[row].length;col++)if(cat[row][col]==='o'){c.fillStyle=row<3?'#c58a55':'#ddac71';c.fillRect(col,row,1,1);}
