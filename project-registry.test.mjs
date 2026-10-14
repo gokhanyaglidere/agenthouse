@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,renameSync,symlinkSync,rmSync,statSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {ProjectRegistry} from './project-registry.mjs';
+import {ProjectRegistry,sameDevice} from './project-registry.mjs';
 import {TaskManager} from './task-manager.mjs';
 
 function fixture(t) {
@@ -96,4 +96,15 @@ test('portable profiles preserve existing instructions and refuse external agent
  const dir=join(f.a,'.claude','agents');mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'project-engineer.md'),'owner instructions');
  const result=installProjectProfiles(f.a);assert.ok(result.preserved.includes('project-engineer'));assert.equal(readFileSync(join(dir,'project-engineer.md'),'utf8'),'owner instructions');
  symlinkSync(f.a,join(f.b,'.claude'));assert.throws(()=>installProjectProfiles(f.b),/proje dışına/);
+});
+
+test('WSL drive mounts ignore the per-mount device number but keep root, inode and git identity',()=>{
+ const base={root:'/mnt/d/Proj',inode:7,gitCommonDir:'/mnt/d/Proj/.git'};
+ assert.equal(sameDevice({...base,device:69},{...base,device:145},'linux'),true);
+ assert.equal(sameDevice({...base,device:145},{...base,device:145},'darwin'),true);
+ assert.equal(sameDevice({...base,device:69},{...base,device:145},'darwin'),false);
+ assert.equal(sameDevice({root:'/home/a/p',device:2},{root:'/home/a/p',device:3},'linux'),false);
+ assert.equal(sameDevice({...base,device:69},{...base,root:'/mnt/e/Proj',device:145},'linux'),false);
+ assert.equal(sameDevice({...base,device:69},{root:'/home/a/Proj',device:145},'linux'),false);
+ assert.equal(sameDevice({...base,root:'/mnt/dd/Proj',device:69},{...base,root:'/mnt/dd/Proj',device:145},'linux'),false);
 });

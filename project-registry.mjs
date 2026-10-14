@@ -5,6 +5,14 @@ import {dirname, join} from 'node:path';
 import {homedir} from 'node:os';
 import {execFileSync} from 'node:child_process';
 
+// WSL mounts Windows drives (/mnt/<drive>, 9p/drvfs) with a device number that is assigned per mount, so it changes
+// on every WSL restart while the NTFS file id (inode), the canonical path and the Git identity stay the same.
+// Only for those mounts the device is not part of the identity; root, inode and gitCommonDir are still enforced.
+const WINDOWS_DRIVE = /^\/mnt\/[a-z](\/|$)/;
+export function sameDevice(verified, stored, platform = process.platform) {
+  if (verified.device === stored.device) return true;
+  return platform === 'linux' && WINDOWS_DRIVE.test(verified.root) && WINDOWS_DRIVE.test(stored.root ?? '') && verified.root === stored.root;
+}
 function identity(path) {
   const root = realpathSync(path);
   const stat = statSync(root);
@@ -55,7 +63,7 @@ export class ProjectRegistry {
     const workspace = this.data.workspaces.find(w=>w.id===workspaceId);
     if (!workspace) throw new Error('Bilinmeyen çalışma ortamı.');
     const verified=identity(workspace.root);
-    if (verified.root!==workspace.root || verified.device!==workspace.device || verified.inode!==workspace.inode || verified.gitCommonDir!==workspace.gitCommonDir) throw new Error('Çalışma klasörünün kimliği değişmiş; tekrar doğrulanmalı.');
+    if (verified.root!==workspace.root || !sameDevice(verified,workspace) || verified.inode!==workspace.inode || verified.gitCommonDir!==workspace.gitCommonDir) throw new Error('Çalışma klasörünün kimliği değişmiş; tekrar doğrulanmalı.');
     const project=this.data.projects.find(p=>p.id===workspace.projectId);
     const namespace=createHash('sha256').update(workspace.id).digest('hex').slice(0,12);
     const store=workspace.legacy?this.storageRoot:join(this.storageRoot,'workspaces',namespace);
