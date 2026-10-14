@@ -1,10 +1,11 @@
-import type {OfficeLayout,PlacedFurniture} from '../office/types.js';
+import {botanicalAtlasReady,botanicalCluster} from './botanicalAtlas.js';
+import type {OfficeLayout,PlacedFurniture,SpriteData} from '../office/types.js';
 
-export const COURTYARD_POOL={col:21,row:65,w:22,h:4};
+export const COURTYARD_POOL={col:30,row:65,w:31,h:4};
 export const COURTYARD_BEDS=[
  {col:4,row:59,w:27,h:3},{col:35,row:59,w:8,h:3},{col:51,row:59,w:21,h:3},
- {col:4,row:65,w:4,h:5},{col:68,row:65,w:4,h:5},
- {col:7,row:71,w:22,h:3},{col:49,row:71,w:23,h:3},
+ {col:4,row:62,w:4,h:8},{col:68,row:62,w:4,h:8},
+ {col:22,row:71,w:23,h:3},{col:57,row:71,w:15,h:3},{col:4,row:71,w:12,h:3},
 ];
 const within=(c:number,r:number,b:{col:number;row:number;w:number;h:number})=>c>=b.col&&c<b.col+b.w&&r>=b.row&&r<b.row+b.h;
 /** One-Line's local presentation layout; does not overwrite a host's saved layout. */
@@ -19,10 +20,10 @@ export function applyPlazaCourtyard(layout:OfficeLayout,enabled:boolean):OfficeL
   if(areaTiles)areaTiles[row*layout.cols+col]=walk?(col<38?'Bahçe · Koruluk':'Bahçe · Teras'):null;
  }
  const outdoor:PlacedFurniture[]=[
-  {uid:'grove-bench-a',type:'BB_BENCH',col:10,row:63},
-  {uid:'terrace-bench-a',type:'BB_BENCH',col:58,row:63},
-  {uid:'grove-beds-a',type:'BB_FLOWERBED',col:7,row:71},
-  {uid:'terrace-beds-a',type:'BB_GARDEN_PLANTER',col:49,row:71},
+  {uid:'grove-bench-a',type:'BB_BENCH',col:8,row:62},
+  {uid:'terrace-bench-a',type:'BB_BENCH',col:58,row:62},
+  {uid:'grove-beds-a',type:'BB_FLOWERBED',col:22,row:71},
+  {uid:'terrace-beds-a',type:'BB_GARDEN_PLANTER',col:57,row:71},
  ];
  return {...layout,tiles,areaTiles,furniture:[...layout.furniture.filter(f=>f.row<56),...outdoor]};
 }
@@ -56,9 +57,29 @@ export function paintPlazaCourtyard(c:CanvasRenderingContext2D){
   c.fillStyle='#879184';c.beginPath();c.moveTo(x-13,y-10);c.lineTo(x+3,y-20);c.lineTo(x+10,y-9);c.lineTo(x-4,y+1);c.closePath();c.fill();
   c.fillStyle='#677668';c.beginPath();c.moveTo(x+10,y-9);c.lineTo(x+19,y-10);c.lineTo(x+24,y+10);c.lineTo(x+4,y+6);c.closePath();c.fill();rect(x-13,y+8,29,3,'#374f36');
  };
+ const p=COURTYARD_POOL,x=p.col*16,y=p.row*16,w=p.w*16,h=p.h*16;
+ rect(x-6,y-6,w+12,h+14,'#62685d');
+ for(let yy=y-6;yy<y+h+8;yy+=3)for(let xx=x-6;xx<x+w+6;xx+=4)if(xx<x||xx>x+w||yy<y||yy>y+h)rect(xx,yy,2,2,(xx+yy)%3?'#434e47':'#92968a');
+ rect(x,y,w,h,'#293e3c');rect(x+3,y+3,w-6,h-6,'#72847b');rect(x+6,y+6,w-12,h-12,'#3c6c66');rect(x+8,y+8,w-16,2,'#9cb9a4');rect(x+7,y+h-8,w-14,2,'#233e3d');
+ for(let yy=y+12;yy<y+h-9;yy+=4)for(let xx=x+10;xx<x+w-10;xx+=7){const n=(xx*19+yy*7)%9;rect(xx,yy,3+n%4,1,['#6b9685','#527f73','#7da38b','#37645f'][n%4]);}
  for(const [i,b]of COURTYARD_BEDS.entries()){
   const x=b.col*16,y=b.row*16,w=b.w*16,h=b.h*16;
-  rect(x+4,y+6,w,h+3,'#696f5a3d');rect(x,y,w,h,'#aaa99a');rect(x+3,y-4,w-6,h-3,'#e7e4d7');rect(x+7,y,w-14,h-13,'#263e29');rect(x,y+h-9,w,9,'#aaa99b');rect(x+2,y+h-10,w-4,3,'#f1eddf');
+  rect(x+5,y+9,w,h+5,'#5e665342');rect(x,y,w,h,'#b6b6a6');rect(x+2,y-5,w-4,h-5,'#e4e2d3');rect(x+8,y+1,w-16,h-20,'#34472f');
+  // Broad honed-stone coping, shaded front face and separated joints give the beds actual depth.
+  rect(x,y+h-15,w,15,'#a9aa9c');rect(x+2,y+h-17,w-4,4,'#f0edde');rect(x+2,y+h-12,w-4,2,'#c6c8b7');
+  for(let xx=x+64;xx<x+w-10;xx+=80)rect(xx,y+h-12,1,12,'#909687');
+  if(botanicalAtlasReady()){
+   const base=y+h-12;
+   for(let xx=x+35;xx<x+w;xx+=62)botanicalCluster(c,3,Math.min(x+w-25,xx),base,90,56);
+   if(i===7){botanicalCluster(c,3,x+w/2,base,w-10,58);}
+   else if(w<100){botanicalCluster(c,i===3?0:2,x+w/2,base,80,115);}
+   else{const count=Math.max(2,Math.floor(w/95));for(let j=0;j<count;j++){
+    const cx=x+43+j*(w-86)/Math.max(1,count-1),variant=(j+i)%3;
+    botanicalCluster(c,variant,cx,base,variant===0?100:110,(b.row<63?94:122)+(j%2)*9);
+   }}
+   // The coping occludes root bottoms, grounding all clusters inside the planter.
+   rect(x+2,y+h-14,w-4,3,'#e5e4d6');rect(x+2,y+h-11,w-4,1,'#c0c4b3');continue;
+  }
   // Dense underplanting is layered before tall stems, not a scattering of isolated trees.
   for(let yy=y+8;yy<y+h-12;yy+=9)for(let xx=x+13;xx<x+w-10;xx+=10){const n=(xx*29+yy*17+i*31)%11;leaf(xx+(n%7)-3,yy+(n%5)-2,5+n%4,['#476c39','#5c7b43','#7b954b','#365a36'][n%4],n);}
   const count=Math.max(1,Math.floor(w/55));
@@ -75,15 +96,27 @@ export function paintPlazaCourtyard(c:CanvasRenderingContext2D){
   // Tiny pale flowers and glossy highlights give each bed a finished edge.
   for(let xx=x+12;xx<x+w-8;xx+=17){rect(xx,y+h-17,2,2,'#c7d2a0');rect(xx+3,y+h-20,2,2,'#7eab58');}
  }
- const p=COURTYARD_POOL,x=p.col*16,y=p.row*16,w=p.w*16,h=p.h*16;
- rect(x-6,y-6,w+12,h+14,'#62685d');
- for(let yy=y-6;yy<y+h+8;yy+=3)for(let xx=x-6;xx<x+w+6;xx+=4)if(xx<x||xx>x+w||yy<y||yy>y+h)rect(xx,yy,2,2,(xx+yy)%3?'#434e47':'#92968a');
- rect(x,y,w,h,'#293e3c');rect(x+3,y+3,w-6,h-6,'#72847b');rect(x+6,y+6,w-12,h-12,'#3c6c66');rect(x+8,y+8,w-16,2,'#9cb9a4');rect(x+7,y+h-8,w-14,2,'#233e3d');
- for(let yy=y+12;yy<y+h-9;yy+=4)for(let xx=x+10;xx<x+w-10;xx+=7){const n=(xx*19+yy*7)%9;rect(xx,yy,3+n%4,1,['#6b9685','#527f73','#7da38b','#37645f'][n%4]);}
+
  c.restore();
 }
 export function renderCourtyardWater(c:CanvasRenderingContext2D,x:number,y:number,zoom:number,time:number){
  const p=COURTYARD_POOL;c.save();c.translate(x,y);c.scale(zoom,zoom);c.beginPath();c.rect(p.col*16+8,p.row*16+8,p.w*16-16,p.h*16-16);c.clip();
  for(let i=0;i<24;i++){const xx=p.col*16+14+i*13+Math.round(Math.sin(time*.5+i)*5),yy=p.row*16+12+(i*11)%38;c.fillStyle=i%3?'#b4c9a44d':'#dce2bc70';c.fillRect(xx,yy,6+i%5,1);}
  c.restore();
+}
+
+const outdoorSpriteCache=new WeakMap<SpriteData,SpriteData>();
+export function courtyardFurniture(type:string|undefined,source:SpriteData):SpriteData{
+ if(!['BB_BENCH','BB_FLOWERBED','BB_GARDEN_PLANTER'].includes(type??''))return source;
+ const saved=outdoorSpriteCache.get(source);if(saved)return saved;
+ const h=source.length,w=source[0]?.length??0,image:SpriteData=Array.from({length:h},()=>Array(w).fill(''));
+ const rect=(x:number,y:number,rw:number,rh:number,color:string)=>{for(let yy=Math.max(0,y);yy<Math.min(h,y+rh);yy++)for(let xx=Math.max(0,x);xx<Math.min(w,x+rw);xx++)image[yy][xx]=color;};
+ if(type==='BB_BENCH'){
+  rect(1,12,w-2,10,'#a5a99a');rect(2,12,w-4,3,'#e7e3d5');rect(3,20,w-6,2,'#7e8778');
+  rect(3,2,w-6,8,'#745132');for(let yy=3;yy<10;yy+=3){rect(4,yy,w-8,2,'#b98c53');rect(5,yy,w-10,1,'#d3a46c');}
+  rect(3,10,w-6,5,'#8a603c');for(let xx=5;xx<w-4;xx+=5){rect(xx,10,3,4,'#bd925e');rect(xx,10,3,1,'#dbb17c');}
+  rect(2,8,2,9,'#4b5147');rect(w-4,8,2,9,'#4b5147');
+ }
+ // Plant-care furniture keeps its original collision/interaction identity; scenery supplies its new visual bed.
+ outdoorSpriteCache.set(source,image);return image;
 }

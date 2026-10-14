@@ -1,3 +1,4 @@
+import {courtyardFurniture} from '../../bibilen/plazaCourtyard.js';
 import {isOneLineWorkspace,plazaFurniture} from '../../bibilen/modernPlaza.js';
 import {workspaceId} from '../../bibilen/workspace.js';
 import {furnitureActivity,playerActivity} from './furnitureActivities.js';
@@ -370,7 +371,7 @@ export function renderScene(
 
   // Furniture
   for (const f of furniture) {
-    const surface=isOneLineWorkspace(workspaceId)&&f.y<56*16?plazaFurniture(f.type,f.sprite):f.sprite;
+    const surface=isOneLineWorkspace(workspaceId)?f.y<56*16?plazaFurniture(f.type,f.sprite):courtyardFurniture(f.type,f.sprite):f.sprite;
     const cached = getCachedSprite(surface, zoom);
     const fx = offsetX + f.x * zoom;
     const fy = offsetY + f.y * zoom;

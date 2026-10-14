@@ -1,3 +1,4 @@
+import {botanicalAtlasReady} from './botanicalAtlas.js';
 import {paintPlazaCourtyard,renderCourtyardWater} from './plazaCourtyard.js';
 import {paintPlazaInterior} from './modernPlaza.js';
 import {PARTITION,doorGeometry} from './partition-style.js';
@@ -6,11 +7,11 @@ import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PA
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
 import {getCachedSprite} from '../office/sprites/spriteCache.js';
 
-let scenery:HTMLCanvasElement|null=null,lastReady=false,lastPlaza=false;
+let scenery:HTMLCanvasElement|null=null,lastReady=false,lastPlaza=false,lastBotanical=false;
 export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,zoom:number,plaza=false){
- const ready=Boolean(getCatalogEntry('BB_WALL_SINK'));
- if(!scenery||ready!==lastReady||plaza!==lastPlaza){
-  lastPlaza=plaza;
+ const ready=Boolean(getCatalogEntry('BB_WALL_SINK')),botanical=botanicalAtlasReady();
+ if(!scenery||ready!==lastReady||plaza!==lastPlaza||(plaza&&botanical!==lastBotanical)){
+  lastPlaza=plaza;lastBotanical=botanical;
   lastReady=ready;scenery=document.createElement('canvas');scenery.width=COZY_COLS*16;scenery.height=COZY_ROWS*16;
   const c=scenery.getContext('2d')!;c.imageSmoothingEnabled=false;
   const rect=(x:number,y:number,w:number,h:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
