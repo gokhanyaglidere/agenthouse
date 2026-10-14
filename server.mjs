@@ -94,16 +94,16 @@ function getRuntime(workspaceId){
  const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});
  const spawnTerminal=(args,{session}={})=>{
-  context.assertValid();
+  context.assertValid();if(args[0]!=='attach')policy.assertNewWork();
   if(args[0]==='attach'){const key=context.workspaceId+':attach:'+session.id;admission.reserveControl(key,context.cwd,session.taskId);try{const terminal=pty.spawn(claudePath,args,{name:'xterm-256color',cols:100,rows:32,cwd:context.cwd,env:{...process.env,TERM:'xterm-256color'}});terminal.onExit(()=>admission.releaseControl(key));return terminal;}catch(error){admission.releaseControl(key);throw error;}}
   const id=args[args.indexOf(args.includes('--session-id')?'--session-id':'--resume')+1];
   const key=context.workspaceId+':'+id;
   admission.reserve(key,context.cwd);
   try{const terminal=terminalBroker.create([...args,...launchGuard()]);terminal.onExit(()=>admission.release(key));return terminal;}catch(error){admission.release(key);throw error;}
  };
- const sessionManager=new SessionManager({cwd:context.cwd,context,extraRoots:[hostGuard?.windowsRootFor(context.cwd)].filter(Boolean),allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
+ const sessionManager=new SessionManager({cwd:context.cwd,context,windowsHandoff:hostGuard?.windowsHandoffFor(context.cwd),extraRoots:[hostGuard?.windowsRootFor(context.cwd)].filter(Boolean),allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),refreshRoles:refreshCapabilities,tasks:()=>taskManager.data.tasks,
   canAttach:id=>!taskManager.data.tasks.some(t=>t.sessionId&&(id===t.sessionId||id.startsWith(t.sessionId+'-'))&&taskTerminals.has(t.id)),
-  listAgents:async()=>{const local=await taskManager.listAgents();if(!hostGuard)return local;const windows=await hostGuard.windowsAgentsFor(context.cwd);if(!Array.isArray(local)||!Array.isArray(windows))return null;return [...local,...windows];},
+  listAgents:async({freshWindows=false}={})=>{const local=await taskManager.listAgents();if(!hostGuard)return local;const windows=await hostGuard.windowsAgentsFor(context.cwd,{fresh:freshWindows});if(!Array.isArray(local)||!Array.isArray(windows))return null;return [...local,...windows];},
   restoreTerminals:async()=>{const recovered=await terminalBroker.recover();for(const {id,terminal}of recovered){const key=context.workspaceId+':'+id;admission.recover(key,context.cwd);terminal.onExit(()=>admission.release(key));}return recovered;},spawnTerminal});
  const slackAlarms=slackCoordinator.add(new SlackHub({dir:context.storageDir,push}));
  const runtime={knowledge,capabilities,refreshCapabilities,roles,context,cwd:context.cwd,taskManager,sessionManager,taskTerminals,pushManager:push,policy,guard,launchGuard,skills:new SkillCatalog(context.cwd,{assertValid:()=>context.assertValid()}),
@@ -378,6 +378,7 @@ async function handleApi(req,res,url){
     }
     const takeoverMatch=url.pathname.match(/^\/bibilen\/api\/sessions\/([^/]+)\/takeover$/);
     if(req.method==='POST'&&takeoverMatch){
+      runtime.policy.assertNewWork();
       if(!operator){sendJson(res,403,{error:'Oturumu yalnızca yönetici devralabilir.'});return true;}
       if(executionHealth.state.status==='blocked')throw new Error(executionHealth.state.message);
       if(admission.pendingRecovery.size||admission.state().active>=admission.state().limit)throw new Error('Ortak çalışma sınırı dolu veya oturumlar kurtarılıyor.');
@@ -424,7 +425,7 @@ async function handleApi(req,res,url){
   }catch(error){sendJson(res,400,{error:error?.message??'İşlem tamamlanamadı.'});return true;}
 }
 const serverListener=async(req,res)=>{
-  if(req.url?.startsWith('/bibilen/guard/check?')&&req.method==='POST'){try{const u=new URL(req.url,'http://localhost');const r=getRuntime(u.searchParams.get('workspaceId'));if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||!r.guard.authenticates(String(req.headers.authorization??'').replace(/^Bearer /,''))){sendJson(res,403,{error:'Forbidden'});return;}sendJson(res,200,await r.guard.check(await readJson(req)));}catch{sendJson(res,400,{error:'Guard unavailable'});}return;}
+  if(req.url?.startsWith('/bibilen/guard/check?')&&req.method==='POST'){try{const u=new URL(req.url,'http://localhost');const r=getRuntime(u.searchParams.get('workspaceId'));if(!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)||!r.guard.authenticates(String(req.headers.authorization??'').replace(/^Bearer /,''))){sendJson(res,403,{error:'Forbidden'});return;}const input=await readJson(req);const conflict=await r.sessionManager.importedToolConflict();sendJson(res,200,conflict?{decision:'deny',reason:conflict}:await r.guard.check(input));}catch{sendJson(res,400,{error:'Guard unavailable'});}return;}
   if(!validHost(req.headers.host)){res.writeHead(403);res.end('Forbidden host');return;}
   const url=new URL(req.url,`http://${req.headers.host}`);
   if(url.pathname.startsWith('/bibilen/api/')){if(!authorizedRequest(req.headers,req.method)){sendJson(res,403,{error:'İstek kaynağına izin verilmiyor.'});return;}await handleApi(req,res,url);return;}

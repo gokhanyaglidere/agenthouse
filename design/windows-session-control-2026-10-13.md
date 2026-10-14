@@ -9,3 +9,7 @@ Delivered: Windows session detail explains the distinction and lets an operator 
 Verification: 227 full backend tests and 105 UI tests passed; build passed. An additional central-gateway mapping regression test passed in the 8-test Windows suite (persist/reload, scope isolation, no forwarded mutation). Existing live native jobs preserved. Real Remote Control activation and message exchange are pending the owner enabling it inside the chosen Windows session and pasting its actual link.
 
 Remaining: native Windows broker launch/control within Agent House, a real end-to-end controlled session test, and the separate WSL project-trust issue for new panel-created execution. Do not present the external Claude control link as Agent House inline terminal ownership or as completed arbitrary terminal takeover. Closed-session cross-OS transcript migration was not implemented: it needs verified resume semantics and conflict handling.
+
+## Superseded implementation scope — 2026-10-14
+
+The external Claude link is now optional. The direct panel path is implemented as an explicit Windows idle/closed conversation handoff into the existing WSL PTY and sandbox, not arbitrary native-console attachment. See windows-handoff-2026-10-14.md for the implementation, passing tests, runtime distinction and still-pending Windows device acceptance. The earlier note that no cross-OS history transfer was implemented describes the October 13 version only.

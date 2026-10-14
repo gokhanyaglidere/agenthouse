@@ -1,3 +1,4 @@
+import {importSessionHistory} from './session-history-import.mjs';
 import {remoteControlUrl} from './remote-control-links.mjs';
 import {hasNativeWork} from './native-work-state.mjs';
 import {sessionOptions,sessionOptionArgs} from './session-options.mjs';
@@ -28,8 +29,8 @@ function stopExternalCli(agent){
  process.kill(agent.pid,'SIGTERM');
 }
 export class SessionManager{
- constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,extraRoots=[],storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles,memoryPrompt=()=>''}){
-  this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
+ constructor({cwd,context,allowedRoles,spawnTerminal,listAgents,tasks=()=>[],canAttach=()=>true,root,extraRoots=[],windowsHandoff=null,storePath,restoreTerminals=async()=>[],stopExternal=stopExternalCli,discoveryReadOnly=false,refreshRoles=()=>{},nativeRoles,memoryPrompt=()=>''}){
+  this.windowsHandoff=windowsHandoff;this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
   this.root=root??join(homedir(),'.claude','projects',this.cwd.replace(/[^a-zA-Z0-9]/g,'-'));
   // Read-only transcript folders written by another machine OS (e.g. Windows Claude seen from WSL). Never written, never resumed.
   this.roots=[this.root,...extraRoots.map(r=>resolve(r))];
@@ -60,10 +61,10 @@ export class SessionManager{
   const saved=this.saved[info?.id];return !!saved&&(!this.context||saved.workspaceId===this.context.workspaceId||this.context.legacy&&!saved.workspaceId);
  }
  assertTranscript(id){const info=this.fileInfo(id);if(!info||!this.scoped(info))throw Error('Oturum kaydı bu projeye ait değil veya proje kimliği doğrulanamadı.');return info;}
- async inventory(){
+ async inventory({freshWindows=false}={}){
   this.context?.assertValid();
   if(!this.restored){this.restoreFlight??=(async()=>{for(const recovered of await this.restoreTerminals()){if(this.live.has(recovered.id)){recovered.terminal.disconnect?.();continue;}const live={...recovered,output:'',clients:new Set(),controller:null,background:false};this.live.set(live.id,live);this.wireTerminal(live);}this.restored=true;})();await this.restoreFlight;}
-  const agents=await this.listAgents();
+  const agents=await this.listAgents({freshWindows});
   const scoped=(agents??[]).filter(a=>a.cwd&&resolve(a.cwd)===this.cwd&&validSessionId(a.sessionId));
   // /clear and /resume change the session UUID inside the same owned CLI process.
   for(const [id,live]of [...this.live]){
@@ -88,9 +89,9 @@ export class SessionManager{
    const task=this.tasks().find(t=>t.sessionId&&(t.sessionId===item.id||item.id.startsWith(t.sessionId+'-')));
    const ext=this.isExternal(item.id);const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
    return {id:item.id,title:task?.title??item.title,role:item.role??task?.role??null,createdAt:item.createdAt,updatedAt:item.updatedAt,status,activity:agent?.state??agent?.status??(own?'open':'unknown'),
-    canOpen:!ext&&(!!own||!!background||(!active&&inventory.available)),canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
+    canOpen:!ext&&!this.windowsConflict(item.id,inventory.agents)&&(!!own||!!background||(!active&&inventory.available)),windowsHandoffAvailable:!!ext&&!!this.windowsHandoff,canTakeover:!!ext&&!!this.windowsHandoff&&inventory.available&&(status==='history'||(status==='external'&&agent?.kind==='interactive'&&(agent.state??agent.status)==='idle')),canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
     remoteControlUrl:this.saved[item.id]?.remoteControlUrl??null,taskId:task?.id??null,taskTitle:task?.title??null,taskStatus:task?.status??null,
-    origin:ext?'windows':'host',note:ext?(!inventory.available?'Windows canlı durumu doğrulanamadı; bu kayıt yalnızca izlenebilir.':'Windows oturumu: Mac panelinden yalnızca izlenebilir. Devam etmek için Windows tarafında aç.'):status==='external'?'Başka bir terminalde açık. Geçmişini okuyabilirsin; devam etmek için önce o terminalde oturumu kapat.':!inventory.available&&!own?'Aktif oturumlar doğrulanamadı. Yenileyip tekrar dene.':null};
+    origin:ext?'windows':'host',note:this.saved[item.id]?.windowsImported?'Bu konuşma aynı proje klasöründe WSL panel terminalinden sürdürülüyor. Windows’taki eski oturumu eşzamanlı açma.':ext?(!inventory.available?'Windows canlı durumu doğrulanamadı; bu kayıt yalnızca izlenebilir.':'Windows oturumu: Mac panelinden yalnızca izlenebilir. Devam etmek için Windows tarafında aç.'):status==='external'?'Başka bir terminalde açık. Geçmişini okuyabilirsin; devam etmek için önce o terminalde oturumu kapat.':!inventory.available&&!own?'Aktif oturumlar doğrulanamadı. Yenileyip tekrar dene.':null};
   }).sort((a,b)=>b.updatedAt-a.updatedAt)};
  }
  create(input){
@@ -119,20 +120,39 @@ export class SessionManager{
   const value=remoteControlUrl(url);
   this.saved[id]={...this.saved[id],title:session.title,createdAt:session.createdAt,updatedAt:Date.now(),...(this.context?{workspaceId:this.context.workspaceId}:{}),remoteControlUrl:value||null};this.save();return await this.known(id);
  }
+ windowsConflict(id,agents){return (!!this.saved[id]?.windowsImported||(existsSync(join(this.root,id+'.jsonl'))&&this.roots.slice(1).some(root=>existsSync(join(root,id+'.jsonl')))))&&agents.some(a=>a.origin==='windows'&&a.sessionId===id&&(ACTIVE.has(a.state)||ACTIVE.has(a.status)));}
+ async importedToolConflict(){
+  const imported=[...this.live.keys()].filter(id=>this.saved[id]?.windowsImported);if(!imported.length)return null;
+  try{const inventory=await this.inventory({freshWindows:true});if(!inventory.available)return 'Aktarılan konuşmanın Windows durumu doğrulanamadı; araç çalıştırılmadı.';
+   if(imported.some(id=>this.windowsConflict(id,inventory.agents)))return 'Aynı konuşma Windows terminalinde yeniden açılmış; yeni araç işlemi engellendi. Windows oturumunu kapat.';
+   return null;
+  }catch{return 'Aktarılan konuşmanın canlı durumu doğrulanamadı; araç çalıştırılmadı.';}
+ }
+ async importWindows(id){
+  if(!this.windowsHandoff)throw Error('Bu bilgisayarda Windows devralma bağlantısı kurulu değil.');
+  this.context?.assertValid();this.assertTranscript(id);
+  if(!this.isExternal(id))throw Error('Bu kayıt artık Windows geçmişi değil.');
+  const inventory=await this.inventory({freshWindows:true});if(!inventory.available||inventory.agents.some(a=>a.sessionId===id&&(ACTIVE.has(a.state)||ACTIVE.has(a.status))))throw Error('Windows oturumunun kapandığı doğrulanamadı.');
+  if(inventory.agents.some(a=>hasNativeWork(a)))throw Error('Bu projede başka CLI işi çalışıyor. İş bittikten sonra yeniden dene.');
+  importSessionHistory({source:this.path(id),root:this.root,id});
+  this.saved[id]={...this.saved[id],windowsImported:true,...(this.context?{workspaceId:this.context.workspaceId}:{}),updatedAt:Date.now()};this.cache.delete(id);this.save();
+  return await this.known(id);
+ }
  async takeover(id){
-  if(this.isExternal(id))throw Error('Windows oturumu yalnızca izlenebilir.');
+  const windows=this.isExternal(id);if(windows&&!this.windowsHandoff)throw Error('Windows oturumu yalnızca izlenebilir; devralma bağlantısı kurulu değil.');
   this.context?.assertValid();this.path(id);
   if(this.transferring.has(id)||this.opening.has(id))throw new Error('Oturum zaten devralınıyor.');
   this.transferring.add(id);
   try{
-   const session=await this.known(id);if(session.status!=='external'||!session.hasTranscript)throw new Error('Yalnızca geçmişi bulunan harici CLI oturumu devralınabilir.');
+   const session=await this.known(id);if(windows&&session.status==='history')return await this.importWindows(id);if(session.status!=='external'||!session.hasTranscript)throw new Error('Yalnızca geçmişi bulunan harici CLI oturumu devralınabilir.');
    const inventory=await this.inventory();if(!inventory.available)throw new Error('CLI durumu doğrulanamadı.');
    const agent=inventory.agents.find(a=>a.sessionId===id);
    if(agent?.kind!=='interactive'||!Number.isInteger(agent.pid)||agent.pid<=1||(agent.state??agent.status)!=='idle')throw new Error('Oturum çalışıyor veya izin bekliyor. İş bittikten sonra yeniden dene.');
-   await this.stopExternal(agent);
+   if(inventory.agents.some(a=>a.sessionId!==id&&hasNativeWork(a)))throw Error('Bu projede başka CLI işi çalışıyor. İş bittikten sonra yeniden dene.');
+   if(windows)await this.windowsHandoff(agent);else await this.stopExternal(agent);
    for(let i=0;i<30;i++){
     const next=await this.inventory();
-    if(next.available&&!next.agents.some(a=>a.sessionId===id&&(ACTIVE.has(a.state)||ACTIVE.has(a.status))))return await this.known(id);
+    if(next.available&&!next.agents.some(a=>a.sessionId===id&&(ACTIVE.has(a.state)||ACTIVE.has(a.status))))return windows?await this.importWindows(id):await this.known(id);
     await new Promise(resolve=>setTimeout(resolve,200));
    }
    throw new Error('Dış terminalin kapanması doğrulanamadı. İkinci bir oturum açılmadı.');
@@ -147,6 +167,7 @@ export class SessionManager{
   try{
    const session=await this.known(id);if(ws.readyState!==1)return;let live=this.live.get(id);
    if(!live){
+    if(this.windowsConflict(id,(await this.inventory({freshWindows:!!this.saved[id]?.windowsImported})).agents))throw Error('Aynı konuşma Windows terminalinde yeniden açılmış. Önce orada kapat.');
     if(!session.canOpen)throw new Error(session.note??'Bu oturum zaten başka bir yerde açık.');
     if(blocked)throw new Error('Claude erişimi engelli. Oturum geçmişini okuyabilirsin; başlatmak için bağlantıyı düzelt.');
     if(this.live.size>=5)throw new Error('Aynı anda en fazla 5 konuşma açık olabilir.');
@@ -157,6 +178,7 @@ export class SessionManager{
     if(agent?.kind!=='background'&&inventory.agents.some(a=>a.sessionId!==id&&hasNativeWork(a)))throw Error('Bu klasörde çalışan CLI işi var; bitmesini bekle.');
     const args=agent?.kind==='background'?['attach',agent.id??id]:session.hasTranscript?['--resume',id,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])]:['--session-id',id,'--name',session.title,...(this.saved[id]?.options?sessionOptionArgs(this.saved[id].options):['--permission-mode','default'])];
     if(!agent&&!session.hasTranscript){this.refreshRoles();if(session.role&&!this.roles.has(session.role))throw Error('Ajan tanımı artık bu projede yok; farklı bir ajan seç.');if(session.role&&(session.role!=='chief'||this.nativeRoles?.has('chief')))args.push('--agent',session.role);else args.push('--append-system-prompt',`${this.context?.projectName ?? 'BiBilen'} projesinin orkestrasyon şefi Gökhan olarak çalış. CLAUDE.md ve proje kurallarını izle. Gerektiğinde .claude/agents içindeki uzmanları kullan.`);}
+    if(!agent&&this.saved[id]?.windowsImported)args.push('--append-system-prompt',`Bu konuşma Windows terminalinden WSL panel terminaline aktarıldı. Şu anki gerçek çalışma klasörü ${this.cwd}. Eski mesajlardaki Windows sürücü yollarını kullanmadan önce WSL karşılıklarını doğrula. Proje kuralları ve izin onayları geçerlidir.`);
     if(!agent&&this.saved[id]?.memorySnapshot){const note='\n\nSahibinin bu oturum oluşturulurken kaydettiği proje kararları (güvenlik ve CLAUDE.md kuralları geçerlidir):\n'+this.saved[id].memorySnapshot;const index=args.indexOf('--append-system-prompt');if(index>=0)args[index+1]+=note;else args.push('--append-system-prompt',note);}
     if(ws.readyState!==1)return;
     if(this.live.size>=5)throw new Error('Aynı anda en fazla 5 konuşma açık olabilir.');
@@ -167,11 +189,13 @@ export class SessionManager{
    if(ws.readyState!==1)return;
    live.clients.add(ws);if(!live.controller)live.controller=ws;
    ws.send(JSON.stringify({type:'control',writable:live.controller===ws}));if(live.output)ws.send(live.output);
-   ws.on('message',raw=>{let m;try{m=JSON.parse(String(raw));}catch{return;}
+   const receive=raw=>{let m;try{m=JSON.parse(String(raw));}catch{return;}
     if(live.controller!==ws)return;
     if(m.type==='input'&&typeof m.data==='string'&&m.data.length<=32768)live.terminal.write(m.data);
     if(m.type==='resize'&&Number.isInteger(m.cols)&&Number.isInteger(m.rows)&&m.cols>=20&&m.cols<=300&&m.rows>=5&&m.rows<=120)live.terminal.resize(m.cols,m.rows);
-   });
+   };
+   let inputFlight=Promise.resolve(),queuedInput=0;
+   ws.on('message',raw=>{if(!this.saved[live.id]?.windowsImported){receive(raw);return;}if(String(raw).length>65536||queuedInput>=16){ws.close(1008,'Girdi sınırı');return;}queuedInput++;inputFlight=inputFlight.then(async()=>{const inventory=await this.inventory();if(ws.readyState!==1||!inventory.available||this.windowsConflict(live.id,inventory.agents)){if(ws.readyState===1)ws.send(JSON.stringify({type:'control',writable:false}));return;}receive(raw);}).catch(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'control',writable:false}));}).finally(()=>queuedInput--);});
    ws.on('close',()=>{live.clients.delete(ws);if(live.controller===ws){live.controller=live.clients.values().next().value??null;if(live.controller?.readyState===1)live.controller.send(JSON.stringify({type:'control',writable:true}));}if(!live.clients.size&&live.background){if(this.live.get(id)===live)this.live.delete(id);live.terminal.kill();}});
   }finally{this.opening.delete(id);}
  }

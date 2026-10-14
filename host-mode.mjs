@@ -1,3 +1,4 @@
+import {createWindowsHandoff} from './windows-handoff.mjs';
 import {createWindowsInventory} from './windows-inventory.mjs';
 // Host-side admission for a remote execution host (e.g. WSL2). The host runs the normal gateway bound to
 // 127.0.0.1; in host mode EVERY request must carry a valid signed envelope from the central gateway.
@@ -10,7 +11,7 @@ import {Readable} from 'node:stream';
 import {HEADERS, NonceCache, verify, sha256, helloProof} from './host-protocol.mjs';
 
 const MAX_BODY = 1_000_000;
-const WORK_START = /^\/bibilen\/api\/(sessions|tasks|operations\/tasks)$/;
+const WORK_START = /^\/bibilen\/api\/(sessions(?:\/[0-9a-f-]{36}\/takeover)?|tasks|operations\/tasks)$/i;
 // Account-level routes that would enumerate other workspaces are not served by a host.
 const UNSCOPED_ALLOWED = new Set(['POST /bibilen/api/projects', 'GET /bibilen/api/usage']);
 
@@ -87,6 +88,7 @@ function deny(res, status, code, extra = {}) {
 const STATUS = {missing_envelope: 401, bad_envelope: 401, bad_signature: 401, body_mismatch: 401, expired: 401, replayed: 401, wrong_host: 403, role_not_allowed: 403, bad_command_id: 400, bad_workspace: 400, bad_actor: 400};
 
 export function createHostGuard({credential, port, bootId = randomUUID(), ledger, nonces = new NonceCache(), workspaces, inventoryRevision, preflight, version = '1', now = Date.now, log = () => {}}) {
+  const windowsHandoff=createWindowsHandoff({projectsRoot:credential.windowsClaudeProjects});
   const windowsInventory=createWindowsInventory({projectsRoot:credential.windowsClaudeProjects});
   const internalHost = `127.0.0.1:${port}`;
   const workspaceInfo = () => workspaces().filter(w => rootAllowed(credential.allowedRoots, w.root));
@@ -128,7 +130,7 @@ export function createHostGuard({credential, port, bootId = randomUUID(), ledger
   }
 
   return {
-    bootId, ledger, windowsAgentsFor: async cwd => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)?windowsInventory?.(cwd)??null:[], windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
+    bootId, ledger, windowsHandoffFor: cwd => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)&&windowsHandoff?agent=>windowsHandoff({...agent,cwd}):null, windowsAgentsFor: async (cwd,options) => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)?windowsInventory?.(cwd,options)??null:[], windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
     // Wrap the gateway's request listener.
     wrap(listener) {
       return async (req, res) => {

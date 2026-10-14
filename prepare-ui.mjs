@@ -1,3 +1,4 @@
+import {syncOfficePresence} from './office-presence-sync.mjs';
 import { readFileSync,writeFileSync,existsSync,cpSync,mkdirSync,chmodSync } from 'node:fs';
 import { dirname,resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,8 +27,10 @@ for(const [before,after] of identityPatches){
  text=text.replace(before,after);
 }
 const presenceMarker='case"webviewReady":Ml(e,n);break;';
-const presencePatch='case"bibilenSyncSessions":{if(!o||!Array.isArray(t.sessions))break;let live=new Set;for(let entry of t.sessions.slice(0,50)){if(typeof entry.sessionId!=="string"||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.sessionId)||typeof entry.transcriptPath!=="string"||!entry.transcriptPath.endsWith(entry.sessionId+".jsonl")||typeof entry.cwd!=="string")continue;live.add(entry.sessionId);o.hookEventHandler.lifecycleCallbacks.onExternalSessionDetected?.(entry.sessionId,entry.transcriptPath,entry.cwd);}for(let sid of o.bibilenInventorySessions??[]){if(live.has(sid))continue;for(let [id,agent]of s)if(agent.isExternal&&agent.sessionId===sid)o.removeAgent(id);}o.bibilenInventorySessions=live;break;}';
-if(!text.includes('case"bibilenSyncSessions":')){
+const legacyPresencePatch='case"bibilenSyncSessions":{if(!o||!Array.isArray(t.sessions))break;let live=new Set;for(let entry of t.sessions.slice(0,50)){if(typeof entry.sessionId!=="string"||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.sessionId)||typeof entry.transcriptPath!=="string"||!entry.transcriptPath.endsWith(entry.sessionId+".jsonl")||typeof entry.cwd!=="string")continue;live.add(entry.sessionId);o.hookEventHandler.lifecycleCallbacks.onExternalSessionDetected?.(entry.sessionId,entry.transcriptPath,entry.cwd);}for(let sid of o.bibilenInventorySessions??[]){if(live.has(sid))continue;for(let [id,agent]of s)if(agent.isExternal&&agent.sessionId===sid)o.removeAgent(id);}o.bibilenInventorySessions=live;break;}';
+const presencePatch='case"bibilenSyncSessions":{('+syncOfficePresence.toString()+')(o,s,t);break;}';
+if(text.includes(legacyPresencePatch))text=text.replace(legacyPresencePatch,presencePatch);
+else if(!text.includes('function syncOfficePresence(')){
  if(text.split(presenceMarker).length!==2)throw Error('Pixel Agents version mismatch; verified session recovery patch stopped');
  text=text.replace(presenceMarker,presencePatch+presenceMarker);
 }
