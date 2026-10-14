@@ -89,7 +89,7 @@ function getRuntime(workspaceId){
  const taskTerminals=new Map();
  const policy=new ProjectPolicy(scopedPath('project-policy'));
  const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
- const launchGuard=(conversationOnly=false)=>guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode,conversationOnly});
+ const launchGuard=(conversationOnly=false)=>{const args=guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode,conversationOnly});return [...args,...(!conversationOnly?capabilities.launchAgentArgs(args[args.indexOf('--tools')+1].split(',').filter(Boolean)):[])];};
  const knowledge=new ProjectContext(context);
  const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
  const terminalBroker=new TerminalBroker({cwd:context.cwd,command:claudePath,storageDir:context.terminalRoot,context});

@@ -26,6 +26,18 @@ const label=(v,max=200)=>typeof v==='string'?v.trim().slice(0,max):'';
 const strings=v=>Array.isArray(v)?v.filter(x=>typeof x==='string').slice(0,100).map(x=>label(x)):typeof v==='string'?v.split(',').slice(0,100).map(x=>label(x)).filter(Boolean):[];
 export class ProjectCapabilities{
  constructor(cwd,{personal=join(homedir(),'.claude','skills')}={}){this.cwd=resolve(cwd);this.personal=personal;}
+ launchAgentArgs(allowedTools){
+  const root=realpathSync(this.cwd),definitions=Object.create(null),allowed=new Set(allowedTools);
+  for(const agent of this.scan().agents){
+   const definition=readDefinition(join(root,agent.path),join(root,'.claude','agents'));
+   if(definition.hash!==agent.hash)throw Error('Ajan tanımı başlatma sırasında değişti.');
+   const tools=agent.tools.length?agent.tools.filter(tool=>allowed.has(tool)):[...allowed];
+   // CLI-only definitions carry instructions, never hooks, permission overrides, MCP or filesystem grants.
+   definitions[agent.key]={description:agent.description,prompt:definition.body,tools,...(['sonnet','opus','haiku','inherit'].includes(agent.model)?{model:agent.model}:{})};
+  }
+  const json=JSON.stringify(definitions);if(Buffer.byteLength(json)>128000)throw Error('Proje ajan tanımları başlatma boyut sınırını aşıyor.');
+  return Object.keys(definitions).length?['--agents',json]:[];
+ }
  scan(){
   const root=realpathSync(this.cwd),agents=[],skills=[],diagnostics=[],duplicateAgents=new Set();
   const sources=[{key:'project',source:'Proje',scope:'project',path:join(root,'.claude','skills'),native:true},{key:'cursor',source:'Proje talimatları · Cursor',scope:'project',path:join(root,'.cursor','skills'),native:false},{key:'personal',source:'Kişisel · bu bilgisayar',scope:'personal',path:this.personal,native:true}];

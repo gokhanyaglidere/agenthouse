@@ -9,3 +9,14 @@ test('bounded catalogs disclose skipped definitions instead of presenting a comp
 test('plain skill files are discovered but missing agent names are never invented',t=>{const f=fixture(t);f.write('.claude/skills/plain/SKILL.md','Apply these project rules.');f.write('.claude/agents/documentation.md','---\ndescription: Documentation only\n---\nNot an agent.');const value=f.scan();assert.equal(value.skills[0].name,'plain');assert.equal(value.agents.length,0);assert.equal(value.diagnostics.length,1);});
 test('manual-only skills are not advertised as preloadable for project agents',t=>{const f=fixture(t);f.write('.claude/skills/manual/SKILL.md','---\nname: manual\ndisable-model-invocation: true\n---\nOnly on explicit request.');f.write('.claude/agents/a.md','---\nname: a\ndescription: Scoped work\nskills: [manual]\n---\nInstructions');const value=f.scan();assert.equal(value.agents[0].skillLinks[0].available,false);assert.match(value.diagnostics[0].message,/kapalı/);});
 test('ambiguous project skill names are disclosed rather than arbitrarily linked',t=>{const f=fixture(t);for(const folder of ['one','two'])f.write('.claude/skills/'+folder+'/SKILL.md','---\nname: same\n---\nProject instructions');f.write('.claude/agents/a.md','---\nname: a\ndescription: Scoped work\nskills: [same]\n---\nInstructions');const value=f.scan();assert.equal(value.agents[0].skillLinks[0].available,false);assert.match(value.diagnostics[0].message,/birden fazla/);});
+test('restricted launches explicitly receive scoped agent prompts without permission or hook overrides',t=>{
+ const f=fixture(t);f.write('.claude/agents/reader.md','---\nname: reader\ndescription: Read fixture\nmodel: sonnet\ntools: Read, Bash\npermissionMode: bypassPermissions\nhooks: {command: never-run}\nmcpServers: [external]\n---\nRead only this fixture.');
+ const args=new ProjectCapabilities(f.root,{personal:join(f.root,'absent')}).launchAgentArgs(['Read','Agent']);assert.equal(args[0],'--agents');
+ assert.deepEqual(JSON.parse(args[1]).reader,{description:'Read fixture',prompt:'Read only this fixture.',tools:['Read'],model:'sonnet'});
+ assert.equal(args[1].includes('bypassPermissions'),false);assert.equal(args[1].includes('never-run'),false);
+});
+test('explicit agent launch definitions stay project scoped and bound inherited tools',t=>{
+ const a=fixture(t),b=fixture(t);for(const [f,body] of [[a,'Project A'],[b,'Project B']])f.write('.claude/agents/local.md','---\nname: local\ndescription: Local worker\n---\n'+body);
+ const left=JSON.parse(new ProjectCapabilities(a.root).launchAgentArgs(['Read'])[1]);const right=JSON.parse(new ProjectCapabilities(b.root).launchAgentArgs(['Read'])[1]);assert.equal(left.local.prompt,'Project A');assert.equal(right.local.prompt,'Project B');assert.deepEqual(left.local.tools,['Read']);
+ const empty=fixture(t);assert.deepEqual(new ProjectCapabilities(empty.root).launchAgentArgs(['Read']),[]);
+});
