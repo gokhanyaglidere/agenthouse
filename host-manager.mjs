@@ -25,7 +25,7 @@ const readJson = (path, fallback) => {try {return JSON.parse(readFileSync(path, 
 
 export class HostManager {
   constructor({hostsPath, secretsPath, linkOptions = {}, allowLoopback = false} = {}) {
-    this.hostsPath = hostsPath; this.secretsPath = secretsPath; this.linkOptions = {...linkOptions, allowLoopback}; this.allowLoopback = allowLoopback;
+    this.hostsPath = hostsPath; this.secretsPath = secretsPath; this.linkOptions = {readTimeoutMs:20_000,...linkOptions, allowLoopback}; this.allowLoopback = allowLoopback;
     this.controlLinksPath=join(dirname(hostsPath),'remote-control-links.json');this.controlLinks=readJson(this.controlLinksPath,{});
     this.links = new Map();
     this.wss = new WebSocketServer({noServer: true, maxPayload: 65536, handleProtocols: () => 'bibilen-control'});

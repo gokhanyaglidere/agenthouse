@@ -150,3 +150,13 @@ test('one failed logs query cannot block another task or later polls',async()=>{
 });
 test('project-defined chief is launched as its native definition rather than a substituted prompt',async()=>{let args;const task=job({role:'chief',status:'queued',sessionId:null}),m=fixture([task],async(_command,value)=>{args=value;return {code:0,stdout:'backgrounded · 12345678',stderr:''};});m.nativeRoles=new Set(['chief']);await m.launchReserved(task);assert.equal(args[args.indexOf('--agent')+1],'chief');assert.equal(args.at(-1),task.prompt);});
 test('unknown native state cannot hide an external busy CLI from workspace admission',async()=>{const task=job({status:'queued',sessionId:null}),m=fixture([task]);m.context={assertValid(){}};m.admission={workspaceBusy:()=>false};let launches=0;m.launch=async()=>launches++;m.listAgents=async()=>[{cwd:m.cwd,state:'unknown',status:'busy'}];await m.schedule();assert.equal(launches,0);assert.match(task.queueReason,/CLI işi/);m.listAgents=async()=>[{cwd:m.cwd,state:'done',status:'busy'}];await m.schedule();assert.equal(launches,1);});
+
+test('inventory polling shares one CLI process and a short snapshot while control checks force refresh',async()=>{
+ const m=Object.create(TaskManager.prototype);m.cwd='/project';m.env={};m.claudePath='fixture';let calls=0,release;let answer=[{sessionId:'fixture',state:'busy'}];m.runCommand=async()=>{calls++;await new Promise(r=>{release=r;});return {code:0,stdout:JSON.stringify(answer)};};
+ const a=m.listAgents({maxAgeMs:1500}),b=m.listAgents({maxAgeMs:1500});assert.equal(calls,1);release();const [one,two]=await Promise.all([a,b]);one[0].state='corrupted';assert.equal(two[0].state,'busy');assert.equal((await m.listAgents({maxAgeMs:1500}))[0].state,'busy');assert.equal(calls,1);
+ const fresh=m.listAgents();assert.equal(calls,2);answer=[];release();assert.deepEqual(await fresh,[]);
+ m.context={assertValid(){throw Error('revoked');}};await assert.rejects(m.listAgents({maxAgeMs:1500}),/revoked/);
+});
+test('failed inventory does not return the previous successful snapshot',async()=>{
+ const m=Object.create(TaskManager.prototype);m.cwd='/project';m.env={};m.claudePath='fixture';m.runCommand=async()=>({code:0,stdout:'[]'});assert.deepEqual(await m.listAgents(),[]);m.runCommand=async()=>{throw Error('unavailable');};assert.equal(await m.listAgents(),null);assert.equal(await m.listAgents({maxAgeMs:1500}),null);
+});

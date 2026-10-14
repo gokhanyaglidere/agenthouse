@@ -168,3 +168,7 @@ test('transferred sessions and their child tools fail closed if Windows is reope
   f.manager.listAgents=async()=>[{sessionId:ID,cwd:f.manager.cwd,state:'busy',kind:'interactive',origin:'windows',pid:42}];assert.match(await f.manager.importedToolConflict(),/yeniden açılmış/);
  }finally{rmSync(f.dir,{recursive:true,force:true});}
 });
+
+test('directory listing resolves mirrored paths once rather than probing each root repeatedly',async()=>{
+ const f=fixture();try{let probes=0;const original=f.manager.rootFor.bind(f.manager);f.manager.rootFor=id=>{probes++;return original(id);};const sessions=(await f.manager.list()).sessions;assert.equal(sessions.length,2);assert.equal(probes,0);assert.ok(sessions.every(s=>s.origin==='windows'&&!s.canOpen));}finally{rmSync(f.dir,{recursive:true,force:true});}
+});

@@ -359,3 +359,10 @@ test('pre-flight reports whether the per-project office engine patch is applied'
   assert.equal(runPreflight({...base, readProc: p => {if (p === '/proc/version') return 'microsoft'; throw new Error('ENOENT');}, cliPath: '/x/cli.js'}).officeEngine, 'missing');
   assert.equal(runPreflight(base).officeEngine, 'unknown');
 });
+
+test('slow API reads have their own deadline while heartbeat and mutation deadlines stay short',async()=>{
+ const link=new HostLink({id:'12345678',name:'fixture',baseUrl:'https://fixture.ts.net',secret:'a'.repeat(64),timeoutMs:5,readTimeoutMs:150,fetchImpl:(_url,{signal})=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>resolve(new Response('{}')),30);signal.addEventListener('abort',()=>{clearTimeout(timer);reject(Object.assign(new Error('timeout'),{name:'AbortError'}));},{once:true});})});
+ assert.equal((await link.raw('GET','/bibilen/api/sessions')).status,200);
+ await assert.rejects(link.raw('GET','/bibilen/host/v1/hello'),{name:'AbortError'});
+ await assert.rejects(link.raw('POST','/bibilen/api/sessions'),{name:'AbortError'});
+});

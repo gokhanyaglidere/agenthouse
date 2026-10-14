@@ -43,8 +43,9 @@ export class SessionManager{
  rootFor(id){for(const root of this.roots)if(existsSync(join(root,id+'.jsonl')))return root;return this.root;}
  isExternal(id){return validSessionId(id)&&this.rootFor(id)!==this.root;}
  path(id){if(!validSessionId(id))throw new Error('Geçersiz oturum kimliği.');return join(this.rootFor(id),id+'.jsonl');}
- fileInfo(id){
-  const path=this.path(id);if(!existsSync(path))return null;const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink())throw Error('Oturum kaydı doğrulanamadı.');
+ fileInfo(id,root){
+  if(!validSessionId(id))throw Error('Geçersiz oturum kimliği.');
+  const path=root&&this.roots.includes(root)?join(root,id+'.jsonl'):this.path(id);let stat;try{stat=lstatSync(path);}catch(error){if(error.code==='ENOENT')return null;throw error;}if(!stat.isFile()||stat.isSymbolicLink())throw Error('Oturum kaydı doğrulanamadı.');
   const cache=this.cache.get(id);if(cache?.path===path&&cache.mtime===stat.mtimeMs&&cache.size===stat.size)return cache.info;
   const head=parseLines(sliceFile(path,0,Math.min(65536,stat.size)));
   const tail=parseLines(sliceFile(path,Math.max(0,stat.size-65536),Math.min(65536,stat.size)));
@@ -55,9 +56,9 @@ export class SessionManager{
   const info={id,title,cwd:records.find(r=>typeof r.cwd==='string')?.cwd??null,createdAt:stat.birthtimeMs||stat.mtimeMs,updatedAt:stat.mtimeMs,hasTranscript:true};
   this.cache.set(id,{path,mtime:stat.mtimeMs,size:stat.size,info});return info;
  }
- scoped(info){
+ scoped(info,canonicalCache){
   if(this.discoveryReadOnly)return true;
-  if(info?.cwd){const canonical=p=>{p=localPath(p);try{return realpathSync(p);}catch{return resolve(p);}};return canonical(info.cwd)===canonical(this.cwd);}
+  if(info?.cwd){const canonical=p=>{p=localPath(p);if(canonicalCache?.has(p))return canonicalCache.get(p);let value;try{value=realpathSync(p);}catch{value=resolve(p);}canonicalCache?.set(p,value);return value;};return canonical(info.cwd)===canonical(this.cwd);}
   const saved=this.saved[info?.id];return !!saved&&(!this.context||saved.workspaceId===this.context.workspaceId||this.context.legacy&&!saved.workspaceId);
  }
  assertTranscript(id){const info=this.fileInfo(id);if(!info||!this.scoped(info))throw Error('Oturum kaydı bu projeye ait değil veya proje kimliği doğrulanamadı.');return info;}
@@ -78,16 +79,16 @@ export class SessionManager{
   return {available:Array.isArray(agents),agents:scoped};
  }
  async list(){
-  const inventory=await this.inventory();const result=new Map(),blocked=new Set();
-  for(const root of this.roots)if(existsSync(root))for(const filename of readdirSync(root)){const id=filename.replace(/\.jsonl$/,'');if(!filename.endsWith('.jsonl')||!validSessionId(id))continue;if(root!==this.root&&result.has(id))continue;try{const info=this.fileInfo(id);if(info&&this.scoped(info))result.set(id,info);else blocked.add(id);}catch{blocked.add(id);}}
-  for(const [id,saved]of Object.entries(this.saved))if(validSessionId(id)&&!blocked.has(id))result.set(id,{...result.get(id),...saved,id,updatedAt:Math.max(saved.updatedAt??0,result.get(id)?.updatedAt??0),hasTranscript:existsSync(this.path(id))});
+  const inventory=await this.inventory();const result=new Map(),blocked=new Set(),transcriptRoots=new Map(),canonicalCache=new Map();
+  for(const root of this.roots)if(existsSync(root))for(const filename of readdirSync(root)){const id=filename.replace(/\.jsonl$/,'');if(!filename.endsWith('.jsonl')||!validSessionId(id))continue;if(root!==this.root&&result.has(id))continue;try{const info=this.fileInfo(id,root);if(info&&this.scoped(info,canonicalCache)){result.set(id,info);transcriptRoots.set(id,root);}else blocked.add(id);}catch{blocked.add(id);}}
+  for(const [id,saved]of Object.entries(this.saved))if(validSessionId(id)&&!blocked.has(id))result.set(id,{...result.get(id),...saved,id,updatedAt:Math.max(saved.updatedAt??0,result.get(id)?.updatedAt??0),hasTranscript:result.get(id)?.hasTranscript??existsSync(this.path(id))});
   for(const agent of inventory.agents){const id=agent.sessionId;if(blocked.has(id))continue;result.set(id,{id,title:agent.name||'Claude konuşması',createdAt:agent.startedAt,updatedAt:agent.startedAt,...result.get(id),agent});}
   return {inventoryAvailable:inventory.available,sessions:[...result.values()].map(item=>{
    const own=this.live.get(item.id);const agent=item.agent??inventory.agents.find(a=>a.sessionId===item.id);
    const active=!!own||(agent&&(ACTIVE.has(agent.state)||ACTIVE.has(agent.status)));
    const background=agent?.kind==='background';
    const task=this.tasks().find(t=>t.sessionId&&(t.sessionId===item.id||item.id.startsWith(t.sessionId+'-')));
-   const ext=this.isExternal(item.id);const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
+   const ext=transcriptRoots.has(item.id)?transcriptRoots.get(item.id)!==this.root:this.isExternal(item.id);const status=own?'open':active?(background?'background':'external'):item.hasTranscript?'history':'new';
    return {id:item.id,title:task?.title??item.title,role:item.role??task?.role??null,createdAt:item.createdAt,updatedAt:item.updatedAt,status,activity:agent?.state??agent?.status??(own?'open':'unknown'),
     canOpen:!ext&&!this.windowsConflict(item.id,inventory.agents)&&(!!own||!!background||(!active&&inventory.available)),windowsHandoffAvailable:!!ext&&!!this.windowsHandoff,canTakeover:!!ext&&!!this.windowsHandoff&&inventory.available&&(status==='history'||(status==='external'&&agent?.kind==='interactive'&&(agent.state??agent.status)==='idle')),conversationOnly:!!own&&!!this.saved[item.id]?.conversationOnly,canStop:!!own&&!own.background,hasTranscript:!!item.hasTranscript,
     remoteControlUrl:this.saved[item.id]?.remoteControlUrl??null,taskId:task?.id??null,taskTitle:task?.title??null,taskStatus:task?.status??null,
@@ -145,7 +146,7 @@ export class SessionManager{
   this.transferring.add(id);
   try{
    const session=await this.known(id);if(windows&&session.status==='history')return await this.importWindows(id);if(session.status!=='external'||!session.hasTranscript)throw new Error('Yalnızca geçmişi bulunan harici CLI oturumu devralınabilir.');
-   const inventory=await this.inventory();if(!inventory.available)throw new Error('CLI durumu doğrulanamadı.');
+   const inventory=await this.inventory({freshWindows:true});if(!inventory.available)throw new Error('CLI durumu doğrulanamadı.');
    const agent=inventory.agents.find(a=>a.sessionId===id);
    if(agent?.kind!=='interactive'||!Number.isInteger(agent.pid)||agent.pid<=1||(agent.state??agent.status)!=='idle')throw new Error('Oturum çalışıyor veya izin bekliyor. İş bittikten sonra yeniden dene.');
    if(!this.conversationOnlyWhenBusy&&inventory.agents.some(a=>a.sessionId!==id&&hasNativeWork(a)))throw Error('Bu projede başka CLI işi çalışıyor. İş bittikten sonra yeniden dene.');
@@ -171,7 +172,7 @@ export class SessionManager{
     if(!session.canOpen)throw new Error(session.note??'Bu oturum zaten başka bir yerde açık.');
     if(blocked)throw new Error('Claude erişimi engelli. Oturum geçmişini okuyabilirsin; başlatmak için bağlantıyı düzelt.');
     if(this.live.size>=5)throw new Error('Aynı anda en fazla 5 konuşma açık olabilir.');
-    const inventory=await this.inventory();if(!inventory.available)throw new Error('Aktif oturumlar doğrulanamadı.');
+    const inventory=await this.inventory({freshWindows:true});if(!inventory.available)throw new Error('Aktif oturumlar doğrulanamadı.');
     const agent=inventory.agents.find(a=>a.sessionId===id);
     if(agent?.kind==='background'&&!this.canAttach(id))throw new Error('Bu görev terminali başka bir panelde açık. Önce onu kapat.');
     if(agent?.kind!=='background'&&agent&&(ACTIVE.has(agent.state)||ACTIVE.has(agent.status)))throw new Error('Oturum başka bir terminalde açık. Önce orada kapat.');

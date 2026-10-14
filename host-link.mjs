@@ -26,9 +26,9 @@ export function assertTailnetUrl(value, {allowLoopback = false} = {}) {
 }
 
 export class HostLink {
-  constructor({id, name, baseUrl, secret, fetchImpl = globalThis.fetch, now = Date.now, verifiedTtlMs = 20_000, timeoutMs = 8_000, pollMs = 5_000, offlineAfterMs = 30_000, allowLoopback = false, onChange = () => {}}) {
+  constructor({id, name, baseUrl, secret, fetchImpl = globalThis.fetch, now = Date.now, verifiedTtlMs = 20_000, timeoutMs = 8_000, readTimeoutMs=timeoutMs, pollMs = 5_000, offlineAfterMs = 30_000, allowLoopback = false, onChange = () => {}}) {
     this.id = id; this.name = name; this.origin = assertTailnetUrl(baseUrl, {allowLoopback}); this.secret = secret;
-    Object.assign(this, {fetchImpl, now, verifiedTtlMs, timeoutMs, pollMs, offlineAfterMs, onChange});
+    Object.assign(this, {fetchImpl, now, verifiedTtlMs, timeoutMs, readTimeoutMs, pollMs, offlineAfterMs, onChange});
     this.status = 'unverified'; this.info = null; this.verifiedAt = 0; this.lastOkAt = 0; this.lastError = null; this.restarted = false; this.timer = null; this.helloBusy = null;
   }
   setStatus(next, error = null) {
@@ -50,7 +50,7 @@ export class HostLink {
     const payload = body === undefined ? Buffer.alloc(0) : Buffer.from(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
     const headers = sign({secret: this.secret, hostId: this.id, method, target, body: payload, actor, workspaceId, revision, commandId});
     if (payload.length) headers['content-type'] = 'application/json';
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), method==='GET'&&target.startsWith('/bibilen/api/')?this.readTimeoutMs:this.timeoutMs);
     try {
       const res = await this.fetchImpl(this.origin + target, {method, headers, body: payload.length ? payload : undefined, signal: controller.signal, redirect: 'error'});
       return {status: res.status, headers: res.headers, body: Buffer.from(await res.arrayBuffer())};

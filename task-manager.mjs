@@ -297,11 +297,15 @@ export class TaskManager {
     this.save();
   }
 
-  async listAgents() {
+  async listAgents({maxAgeMs=0}={}) {
     this.context?.assertValid();
-    const result = await this.runCommand(this.claudePath, ['agents', '--json', '--all'], { cwd: this.cwd, env: this.env });
-    if (result.code !== 0) return null;
-    try { const agents=JSON.parse(result.stdout); return Array.isArray(agents) ? agents : null; } catch { return null; }
+    if(this.agentSnapshot&&maxAgeMs>0&&Date.now()-this.agentSnapshot.at<maxAgeMs)return structuredClone(this.agentSnapshot.agents);
+    this.agentFlight??=(async()=>{
+      let agents=null;
+      try{const result=await this.runCommand(this.claudePath,['agents','--json','--all'],{cwd:this.cwd,env:this.env});if(result.code===0){const parsed=JSON.parse(result.stdout);if(Array.isArray(parsed))agents=parsed;}}catch{}
+      this.agentSnapshot={at:Date.now(),agents};return agents;
+    })();
+    const flight=this.agentFlight;try{return structuredClone(await flight);}finally{if(this.agentFlight===flight)this.agentFlight=null;}
   }
 
   async logs(task) {
