@@ -172,3 +172,10 @@ test('transferred sessions and their child tools fail closed if Windows is reope
 test('directory listing resolves mirrored paths once rather than probing each root repeatedly',async()=>{
  const f=fixture();try{let probes=0;const original=f.manager.rootFor.bind(f.manager);f.manager.rootFor=id=>{probes++;return original(id);};const sessions=(await f.manager.list()).sessions;assert.equal(sessions.length,2);assert.equal(probes,0);assert.ok(sessions.every(s=>s.origin==='windows'&&!s.canOpen));}finally{rmSync(f.dir,{recursive:true,force:true});}
 });
+
+test('Windows history folders created after runtime startup are discovered without restarting the gateway',async()=>{
+ const f=fixture();try{
+  let mounted=false;f.manager.extraRoots=()=>mounted?[f.win]:[];assert.equal((await f.manager.list()).sessions.length,0);mounted=true;
+  const result=await f.manager.list();assert.equal(result.sessions.length,2);assert.equal(result.sessions.find(s=>s.id===ID).origin,'windows');assert.equal(f.manager.rootFor(ID),f.win);
+ }finally{rmSync(f.dir,{recursive:true,force:true});}
+});

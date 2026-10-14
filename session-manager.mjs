@@ -33,14 +33,15 @@ export class SessionManager{
   this.conversationOnlyWhenBusy=conversationOnlyWhenBusy;this.workspaceBusy=workspaceBusy;this.windowsHandoff=windowsHandoff;this.memoryPrompt=memoryPrompt;this.nativeRoles=nativeRoles;this.refreshRoles=refreshRoles;this.discoveryReadOnly=discoveryReadOnly;this.stopExternal=stopExternal;this.transferring=new Set();this.context=context;this.cwd=resolve(context?.cwd??cwd);this.roles=allowedRoles;this.spawnTerminal=spawnTerminal;this.listAgents=listAgents;this.tasks=tasks;this.canAttach=canAttach;
   this.root=root??join(homedir(),'.claude','projects',this.cwd.replace(/[^a-zA-Z0-9]/g,'-'));
   // Read-only transcript folders written by another machine OS (e.g. Windows Claude seen from WSL). Never written, never resumed.
-  this.roots=[this.root,...extraRoots.map(r=>resolve(r))];
+  this.extraRoots=extraRoots;this.refreshRoots();
   this.storePath=storePath??context?.sessionStorePath??join(homedir(),'.pixel-agents','bibilen-sessions.json');
   try{this.saved=JSON.parse(readFileSync(this.storePath,'utf8')).sessions??{};}catch{this.saved={};}
   this.restoreTerminals=restoreTerminals;this.restored=false;this.restoreFlight=null;
   this.live=new Map();this.cache=new Map();this.opening=new Set();
  }
  save(){mkdirSync(resolve(this.storePath,'..'),{recursive:true});const tmp=this.storePath+'.tmp';writeFileSync(tmp,JSON.stringify({version:1,sessions:this.saved}),{mode:0o600});renameSync(tmp,this.storePath);chmodSync(this.storePath,0o600);}
- rootFor(id){for(const root of this.roots)if(existsSync(join(root,id+'.jsonl')))return root;return this.root;}
+ refreshRoots(){const extra=typeof this.extraRoots==='function'?this.extraRoots():this.extraRoots;this.roots=[this.root,...(extra??[]).map(r=>resolve(r))];}
+ rootFor(id){if(typeof this.extraRoots==='function')this.refreshRoots();for(const root of this.roots)if(existsSync(join(root,id+'.jsonl')))return root;return this.root;}
  isExternal(id){return validSessionId(id)&&this.rootFor(id)!==this.root;}
  path(id){if(!validSessionId(id))throw new Error('Geçersiz oturum kimliği.');return join(this.rootFor(id),id+'.jsonl');}
  fileInfo(id,root){
@@ -63,7 +64,7 @@ export class SessionManager{
  }
  assertTranscript(id){const info=this.fileInfo(id);if(!info||!this.scoped(info))throw Error('Oturum kaydı bu projeye ait değil veya proje kimliği doğrulanamadı.');return info;}
  async inventory({freshWindows=false}={}){
-  this.context?.assertValid();
+  this.context?.assertValid();this.refreshRoots();
   if(!this.restored){this.restoreFlight??=(async()=>{for(const recovered of await this.restoreTerminals()){if(this.live.has(recovered.id)){recovered.terminal.disconnect?.();continue;}const live={...recovered,output:'',clients:new Set(),controller:null,background:false};this.live.set(live.id,live);this.wireTerminal(live);}this.restored=true;})();await this.restoreFlight;}
   const agents=await this.listAgents({freshWindows});
   const scoped=(agents??[]).filter(a=>a.cwd&&resolve(a.cwd)===this.cwd&&validSessionId(a.sessionId));

@@ -130,7 +130,7 @@ export function createHostGuard({credential, port, bootId = randomUUID(), ledger
   }
 
   return {
-    bootId, ledger, windowsHandoffFor: cwd => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)&&windowsHandoff?agent=>windowsHandoff({...agent,cwd}):null, windowsAgentsFor: async (cwd,options) => rootAllowed(credential.allowedRoots,cwd)&&windowsTranscriptRoot(credential.windowsClaudeProjects,cwd)?windowsInventory?.(cwd,options)??null:[], windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
+    bootId, ledger, windowsHandoffFor: cwd => rootAllowed(credential.allowedRoots,cwd)&&/^\/mnt\/[a-z](\/|$)/i.test(cwd)&&windowsHandoff?agent=>windowsHandoff({...agent,cwd}):null, windowsAgentsFor: async (cwd,options) => credential.windowsClaudeProjects&&rootAllowed(credential.allowedRoots,cwd)&&/^\/mnt\/[a-z](\/|$)/i.test(cwd)?windowsInventory?.(cwd,options)??null:[], windowsRootFor: cwd => windowsTranscriptRoot(credential.windowsClaudeProjects, cwd),
     // Wrap the gateway's request listener.
     wrap(listener) {
       return async (req, res) => {
