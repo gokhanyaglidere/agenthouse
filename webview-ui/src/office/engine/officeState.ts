@@ -887,6 +887,8 @@ export class OfficeState {
     const ch = this.characters.get(id);
     if (ch) {
       ch.currentTool = tool;
+      if(tool==='EnterPlanMode'){ch.planningMode=true;ch.planningSignalAt=Date.now();}
+      if(tool==='ExitPlanMode'){ch.planningMode=false;ch.planningSignalAt=Date.now();}
     }
   }
 
@@ -1181,7 +1183,7 @@ export class OfficeState {
     const seats: Record<number, { palette: number; hueShift: number; seatId: string | null }> = {};
     for (const ch of this.characters.values()) {
       if (ch.isSubagent || ch.id <= -10000) continue;
-      seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.seatId };
+      seats[ch.id] = { palette: ch.palette, hueShift: ch.hueShift, seatId: ch.planningMeeting ? ch.planningHomeSeat ?? null : ch.seatId };
     }
     return seats;
   }

@@ -1,3 +1,4 @@
+import {syncPlanningRoom} from './planningRoom.js';
 import type { OfficeState } from '../office/engine/officeState.js';
 import { ROSTER, residentId, residentSlot, isResident } from './roster.js';
 import { insideCeo, COZY_REVISION } from './layouts.js';
@@ -19,6 +20,7 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
     ch.sessionHidden=!!(live&&!work?.limitedSessions&&session&&!live.has(session));
     if(live&&session&&!ch.isSubagent&&!ch.sessionHidden){const lead=live.get(session)?.members.find(m=>m.id==='lead');if(lead?.liveState){office.setAgentActive(ch.id,lead.liveState==='running');if(lead.liveState==='idle'){ch.bubbleType=null;ch.currentTool=null;}}}
   }
+  syncPlanningRoom(office,work,subagents);
   for(const ch of [...office.characters.values()].sort((a,b)=>Number(b.isActive)-Number(a.isActive)||b.id-a.id)) {
     if(isResident(ch.id)) continue;
     if(ch.matrixEffect==='despawn'||ch.sessionHidden) continue;
@@ -26,7 +28,7 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
     const taskRole=!ch.isSubagent && sessionId ? tasks.find(t=>t.sessionId && (sessionId===t.sessionId || (/^[0-9a-f]{8}$/i.test(t.sessionId) && sessionId.startsWith(t.sessionId+'-'))))?.role : undefined;
     const explicit=roleFromLabel(subagents.find(s=>s.id===ch.id)?.label ?? ch.agentName ?? '');
     const key = (taskRole && ROSTER.some(r=>r.key===taskRole) ? taskRole : undefined) ?? explicit ?? office.agentRoleKeys.get(ch.id) ?? (ch.id>0 && !ch.isSubagent ? 'chief' : undefined);
-    if(key){office.agentRoleKeys.set(ch.id,key);ch.privateOffice=key==='chief'&&office.getLayout().layoutRevision===COZY_REVISION;}
+    if(key){office.agentRoleKeys.set(ch.id,key);ch.privateOffice=!ch.planningMeeting&&key==='chief'&&office.getLayout().layoutRevision===COZY_REVISION;}
     if(key && !bound.has(key)) bound.set(key,ch.id);
   }
   ROSTER.forEach((role,i)=>{
@@ -36,13 +38,13 @@ export function syncResidents(office: OfficeState, subagents: Array<{id:number;l
       if(ghost){if(ghost.seatId){const seat=office.seats.get(ghost.seatId); if(seat)seat.assigned=false;}office.characters.delete(id);}
       const live=office.characters.get(bound.get(role.key)!);
       if(live){live.agentName=role.name;live.wardrobeRole=role.key;live.palette=residentSlot(i)%COZY_CHARACTER_COUNT;live.hueShift=0;}
-      if(live && live.seatId!==`seat-${role.key}`){
+      if(live && !live.planningMeeting && live.seatId!==`seat-${role.key}`){
         if(role.key==='chief'){for(const other of office.characters.values())if(other.id!==live.id&&other.seatId==='seat-chief'){other.seatId=null;other.path=[];other.state=CharacterState.IDLE;const seat=office.seats.get('seat-chief');if(seat)seat.assigned=false;}}
         office.reassignSeat(live.id,`seat-${role.key}`);
       }
       // A specialist may be spawned next to its parent in the locked CEO room.
       // Put it at its own workstation; the closed door never becomes walkable.
-      if(live && (role.key==='chief'?!insideCeo(live.tileCol,live.tileRow):insideCeo(live.tileCol,live.tileRow))){
+      if(live && !live.planningMeeting && (role.key==='chief'?!insideCeo(live.tileCol,live.tileRow):insideCeo(live.tileCol,live.tileRow))){
         const seat=office.seats.get(`seat-${role.key}`);
         if(seat){live.tileCol=seat.seatCol;live.tileRow=seat.seatRow;live.x=(seat.seatCol+.5)*TILE_SIZE;live.y=(seat.seatRow+.5)*TILE_SIZE;live.path=[];live.state=CharacterState.TYPE;live.dir=seat.facingDir;}
       }

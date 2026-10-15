@@ -105,12 +105,13 @@ export function updateCharacter(
   stations:NonNullable<Character['ambientTarget']>[]=SOCIAL_VISITS,
 ): void {
   if(ch.isActive){if(ch.ambientTarget&&ch.state===CharacterState.WALK){ch.path=[];ch.moveProgress=0;const center=tileCenter(ch.tileCol,ch.tileRow);ch.x=center.x;ch.y=center.y;ch.state=CharacterState.IDLE;}ch.ambientTarget=undefined;ch.ambientPause=0;ch.ambientElapsed=0;ch.ambientPartnerId=undefined;ch.ambientChatTimer=0;ch.ambientPetId=undefined;}
-  if (ch.seatId === 'seat-chief' || ch.privateOffice) {
+  if (!ch.planningMeeting && (ch.seatId === 'seat-chief' || ch.privateOffice)) {
     const inside = insideCeo;
     walkableTiles = walkableTiles.filter(t => inside(t.col,t.row));
     blockedTiles = new Set(blockedTiles);
     for(let row=0;row<tileMap.length;row++)for(let col=0;col<tileMap[row].length;col++)if(!inside(col,row))blockedTiles.add(`${col},${row}`);
   }
+  if(ch.planningMeeting&&!ch.isActive&&ch.seatId){const seat=seats.get(ch.seatId);if(seat&&ch.tileCol===seat.seatCol&&ch.tileRow===seat.seatRow){ch.state=CharacterState.TYPE;ch.dir=seat.facingDir;ch.frame=0;return;}}
   ch.frameTimer += dt;
 
   switch (ch.state) {

@@ -1,5 +1,7 @@
 # Agent House TODO
 
+- [ ] Forward native Claude `permission-mode` / user `permissionMode` records into work telemetry so manual CLI plan toggles can drive meeting-room placement too. Current UI supports explicit EnterPlanMode/ExitPlanMode tool events and active Plan children; actual local transcripts contain permission-mode records (verified 2026-10-15). Finish with a connected real-session mode transition test without interrupting existing terminals.
+
 Updated: 2026-10-14. Technical follow-ups are parked at the owner's request; design is the current priority. Unchecked items mean evidence is missing or work remains, not that the feature is known to be broken.
 
 ## Technical follow-ups — parked

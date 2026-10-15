@@ -32,6 +32,7 @@ const gardenFurniture:PlacedFurniture[]=[
   ['north-shrub-a','BB_SHRUB',4,59],['north-shrub-b','BB_SHRUB',11,60],['north-shrub-c','BB_SHRUB',19,59],['north-shrub-d','BB_SHRUB',28,60],['north-shrub-e','BB_SHRUB',37,59],
   ['west-shrub-a','BB_SHRUB',5,62],['west-shrub-b','BB_SHRUB',7,70],['east-shrub-a','BB_SHRUB',70,65],['east-shrub-b','BB_SHRUB',71,71],
   ['south-shrub-b','BB_SHRUB',45,73],['deck-shrub-a','BB_SHRUB',50,73],['deck-shrub-b','BB_SHRUB',62,73],
+  ['bonsai-west','BB_SHRUB',10,65],['bonsai-deck','BB_SHRUB',63,65],
   ['path-lantern-a','BB_LANTERN',47,62],['path-lantern-b','BB_LANTERN',68,69],
  ] as [string,string,number,number][]).map(([uid,type,col,row])=>({uid:'garden-'+uid,type,col,row})),
 ];

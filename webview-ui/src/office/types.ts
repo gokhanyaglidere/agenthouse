@@ -173,8 +173,14 @@ export interface Character {
   id: number;
   /** Native transcript watchers can outlive their actual CLI session. */
   sessionHidden?: boolean;
-  /** All chief sessions stay inside the private CEO office. */
+  /** Chief sessions stay in the private CEO office except an observed planning meeting. */
   privateOffice?: boolean;
+  /** Observed Claude planning mode and temporary visual meeting assignment. */
+  planningMode?: boolean;
+  planningTraceEvent?: string;
+  planningSignalAt?: number;
+  planningMeeting?: boolean;
+  planningHomeSeat?: string | null;
   state: CharacterState;
   dir: Direction;
   /** Pixel position */

@@ -1,3 +1,5 @@
+import {receptionHost,receptionLabel,workstationScreen} from '../../bibilen/officeLife.js';
+import {drawJapanesePlant,renderSakuraPetals,renderGardenFauna} from '../../bibilen/japaneseGarden.js';
 import {isBibilenWorkspace} from '../../bibilen/bibilenGarden.js';
 import {courtyardFurniture} from '../../bibilen/plazaCourtyard.js';
 import {isOneLineWorkspace,plazaFurniture} from '../../bibilen/modernPlaza.js';
@@ -391,8 +393,9 @@ export function renderScene(
       drawables.push({
         zY: f.zY,
         draw: (c) => {
-          treeSway(c,cached,f.sprite,fx,fy,zoom);
+          if(!isBibilenWorkspace(workspaceId)||!drawJapanesePlant(c,f,fx,fy,zoom))treeSway(c,cached,f.sprite,fx,fy,zoom);
           furnitureActivity(c,f,characters,fx,fy,zoom);
+          workstationScreen(c,f,characters,fx,fy,zoom);
         },
       });
     }
@@ -964,10 +967,11 @@ export function renderFrame(
   // Draw walls + furniture + characters (z-sorted)
   const selectedId = selection?.selectedAgentId ?? null;
   const hoveredId = selection?.hoveredAgentId ?? null;
+  const reception=cozy&&isBibilenWorkspace(workspaceId)?receptionHost(furniture,characters):null;
   renderScene(
     ctx,
     allFurniture,
-    characters,
+    reception?[...characters,reception]:characters,
     offsetX,
     offsetY,
     zoom,
@@ -977,6 +981,8 @@ export function renderFrame(
   );
 
   if(cozy)renderWildlife(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId),isBibilenWorkspace(workspaceId));
+  if(cozy&&isBibilenWorkspace(workspaceId)){renderSakuraPetals(ctx,furniture,offsetX,offsetY,zoom);renderGardenFauna(ctx,offsetX,offsetY,zoom);}
+  if(reception)receptionLabel(ctx,reception,offsetX,offsetY,zoom);
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
