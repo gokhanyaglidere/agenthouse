@@ -34,6 +34,7 @@ export class ScopedPush {
  constructor(push,context,{legacy=false}={}){this.push=push;this.context=context;this.legacy=legacy;}
  belongs(item){return item.workspaceId===this.context.workspaceId||(!item.workspaceId&&this.legacy);}
  state(){return {...this.push.state(),items:this.push.items.filter(n=>this.belongs(n))};}
+ resolveSession(sessionId){return this.push.resolveSession(sessionId,this.context.workspaceId);}
  async send(task,heading){return this.push.send({...task,projectId:this.context.projectId,workspaceId:this.context.workspaceId,projectName:this.context.projectName},heading);}
  markRead(id){if(id&&!this.push.items.some(n=>n.id===id&&this.belongs(n)))throw new Error('Bu projede bildirim bulunamadı.');for(const item of this.push.items)if(this.belongs(item)&&(!id||item.id===id))item.read=true;this.push.save();return this.state();}
  publicKey(){return this.push.publicKey();}

@@ -9,6 +9,8 @@ import App from './App.tsx';
 import { isBrowserRuntime } from './runtime';
 
 async function main() {
+  // Refresh only an existing notification worker once at startup; never request permission here.
+  if(isBrowserRuntime&&'serviceWorker'in navigator)void navigator.serviceWorker.getRegistration('/').then(registration=>registration?.update()).catch(()=>{});
   // browserMock is for Vite dev mode only (UI prototyping without a server).
   // In standalone server mode, assets are loaded server-side and sent over WebSocket.
   if (isBrowserRuntime && import.meta.env.DEV) {

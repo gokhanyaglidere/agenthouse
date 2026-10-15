@@ -88,7 +88,7 @@ function getRuntime(workspaceId){
  const push=new ScopedPush(accountPush,context,{legacy:context.legacy});
  const taskTerminals=new Map();
  const policy=new ProjectPolicy(scopedPath('project-policy'));
- const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
+ const guard=new ToolGuard({cwd:context.cwd,path:scopedPath('tool-guard'),policy,notify:r=>push.send({id:r.id,sessionId:r.sessionId,status:'waiting',source:'approval',title:'Araç onayı gerekiyor',noticeId:r.id},'İzin')});
  const launchGuard=(conversationOnly=false)=>{const args=guard.settings({node:process.execPath,script:join(here,'tool-guard-client.mjs'),port:gatewayPort,workspaceId:context.workspaceId,mode:policy.state().toolMode,conversationOnly});return [...args,...(!conversationOnly?capabilities.launchAgentArgs(args[args.indexOf('--tools')+1].split(',').filter(Boolean)):[])];};
  const knowledge=new ProjectContext(context);
  const taskManager=new TaskManager({cwd:context.cwd,claudePath,allowedRoles:roles,nativeRoles,memoryPrompt:()=>knowledge.prompt(),context,admission,launchGuard,checkNewWork:()=>{policy.assertNewWork();refreshCapabilities();},onNotice:(task,heading)=>push.send(task,heading)});
@@ -245,6 +245,18 @@ function serveObserverPage(req,res,url){
  try{const canonical=realpathSync(path);if(!canonical.startsWith(realpathSync(root)+'/')||!statSync(canonical).isFile())throw Error();const body=readFileSync(canonical);const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.woff':'font/woff','.woff2':'font/woff2'}[extname(canonical)];res.writeHead(200,{'Content-Type':mime??'application/octet-stream','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"});res.end(req.method==='HEAD'?undefined:body);}catch{res.writeHead(503,{'Cache-Control':'no-store'});res.end('Observer page is not ready');}
 }
 async function handleHostApi(req,res,url,operator){
+ // Account-wide notification controls belong to the central gateway even when a remote project is selected.
+ if(url.searchParams.get('scope')==='all'&&['/bibilen/api/notifications','/bibilen/api/notifications/read','/bibilen/api/notifications/preferences','/bibilen/api/notifications/delivery','/bibilen/api/notifications/test'].includes(url.pathname)){
+  if(!operator){sendJson(res,403,{error:'Bildirim ayarlarını yalnızca yönetici değiştirebilir.'});return true;}
+  try{
+   if(req.method==='GET'&&url.pathname==='/bibilen/api/notifications')sendJson(res,200,accountPush.state());
+   else if(req.method==='POST'&&url.pathname.endsWith('/read'))sendJson(res,200,accountPush.markRead((await readJson(req)).id));
+   else if(req.method==='POST'&&url.pathname.endsWith('/preferences'))sendJson(res,200,accountPush.updatePreferences(await readJson(req)));
+   else if(req.method==='POST'&&url.pathname.endsWith('/delivery'))sendJson(res,200,accountPush.updateDelivery(await readJson(req)));
+   else if(req.method==='POST'&&url.pathname.endsWith('/test')){await accountPush.send({id:'notification-test-'+Date.now(),status:'completed',title:'Bildirim bağlantısı testi',noticeId:'notification-test-'+Date.now(),isTest:true});sendJson(res,200,accountPush.state());}
+   else sendJson(res,405,{error:'Desteklenmeyen HTTP yöntemi.'});
+  }catch(error){sendJson(res,400,{error:error.message});}return true;
+ }
  const scope=workspaceScope(url,req.headers,null);
  const globalRoute=['/bibilen/api/projects','/bibilen/api/portfolio','/bibilen/api/session-catalog','/bibilen/api/backups','/bibilen/api/backups/export'].includes(url.pathname)||url.pathname.startsWith('/bibilen/api/session-catalog/');
  const remote=!!scope&&hostManager.isRemote(scope)&&!globalRoute&&!url.pathname.startsWith('/bibilen/api/hosts'),route=url.pathname==='/bibilen/api/hosts'||url.pathname.startsWith('/bibilen/api/hosts/');

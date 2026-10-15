@@ -44,15 +44,15 @@ export const getSessionWork=(id:string)=>request<import('./types.js').WorkTrace>
 export const getTaskWork=(id:string)=>request<{task:BibilenTask;trace:import('./types.js').WorkTrace|null;events:import('./types.js').TaskEvent[]}>(`tasks/${encodeURIComponent(id)}/work`);
 
 export const getNotifications=(scope:'project'|'all'='project')=>request<import('./types.js').NotificationState>(`notifications?scope=${scope}`);
-export const updateNotificationPreferences=(input:Partial<import('./types.js').NotificationState['preferences']>)=>request<import('./types.js').NotificationState>('notifications/preferences',{method:'POST',body:JSON.stringify(input)});
+export const updateNotificationPreferences=(input:Partial<import('./types.js').NotificationState['preferences']>)=>request<import('./types.js').NotificationState>('notifications/preferences?scope=all',{method:'POST',body:JSON.stringify(input)});
 export const markNotificationsRead=(id?:string,scope:'project'|'all'='project')=>request<import('./types.js').NotificationState>(`notifications/read?scope=${scope}`,{method:'POST',body:JSON.stringify({id})});
 export async function pushEnabled(){if(!('Notification'in window)||Notification.permission!=='granted'||!('serviceWorker'in navigator)||!('PushManager'in window))return false;const registration=await navigator.serviceWorker.getRegistration('/');const subscription=await registration?.pushManager.getSubscription();if(!subscription)return false;const status=await request<{registered:boolean}>('push-status',{method:'POST',body:JSON.stringify({endpoint:subscription.endpoint})});return status.registered;}
 export async function disablePush(){const registration=await navigator.serviceWorker.getRegistration('/');const subscription=await registration?.pushManager.getSubscription();if(subscription){await request('push-unsubscribe',{method:'POST',body:JSON.stringify({endpoint:subscription.endpoint})});await subscription.unsubscribe();}}
 
-export const updateDeliveryPreferences=(input:Partial<import('./types.js').DeliveryPreferences>)=>request<import('./types.js').NotificationState>('notifications/delivery',{method:'POST',body:JSON.stringify(input)});
+export const updateDeliveryPreferences=(input:Partial<import('./types.js').DeliveryPreferences>)=>request<import('./types.js').NotificationState>('notifications/delivery?scope=all',{method:'POST',body:JSON.stringify(input)});
 export const getChanges=(id:string)=>request<{files:Array<{path:string;diff:string;limited?:boolean;untracked?:boolean;missing?:boolean;unavailable?:boolean}>;note:string}>(`sessions/${encodeURIComponent(id)}/changes`);
 
-export const sendNotificationTest=()=>request<import('./types.js').NotificationState>('notifications/test',{method:'POST',body:'{}'});
+export const sendNotificationTest=()=>request<import('./types.js').NotificationState>('notifications/test?scope=all',{method:'POST',body:'{}'});
 
 export const getUsage=()=>request<import('./IntegrationsPanel.js').UsageState>('usage');
 export const getIntegrations=()=>request<import('./IntegrationsPanel.js').IntegrationState>('integrations');

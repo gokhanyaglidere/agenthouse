@@ -105,6 +105,10 @@ test('isolated gateway routes two real workspace contexts without crossing recor
  const all=(await request('notifications?scope=all',{workspace:bid})).body.items;assert.ok(all.some(n=>n.workspaceId===aid));assert.ok(all.some(n=>n.workspaceId===bid));
  await request('notifications/read?scope=all',{workspace:bid,body:{id:all.find(n=>n.workspaceId===aid).id}});
  assert.ok((await request('notifications',{workspace:aid})).body.items.some(n=>n.read));
+ const remoteScope='h~12345678~11111111-1111-4111-8111-111111111111';
+ const remoteNotices=await request('notifications?scope=all',{workspace:remoteScope});assert.equal(remoteNotices.status,200);assert.ok(remoteNotices.body.items.some(n=>n.workspaceId===aid));
+ const remotePreferences=await request('notifications/preferences?scope=all',{workspace:remoteScope,body:{sessionReplies:false}});assert.equal(remotePreferences.status,200);assert.equal(remotePreferences.body.preferences.sessionReplies,false);
+ assert.equal((await request('notifications?scope=all',{workspace:remoteScope,headers:alice})).status,403);
  const denied=await request('notifications/read?scope=all',{workspace:bid,body:{},headers:{host:'office.example',origin:'https://office.example'}});assert.equal(denied.status,403);
  const portfolio=await request('portfolio');assert.equal(portfolio.body.items.length,2);assert.equal(portfolio.body.admission.limit,3);
  const viewer=await request('projects',{body:{name:'Unauthorized',path:a},headers:{host:'office.example',origin:'https://office.example'}});assert.equal(viewer.status,403);

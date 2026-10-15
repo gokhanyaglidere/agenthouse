@@ -4,6 +4,8 @@ Updated: 2026-10-14. Technical follow-ups are parked at the owner's request; des
 
 ## Technical follow-ups — parked
 
+- [ ] Deploy and verify the 2026-10-15 smart notification policy on the Windows host before registering push devices directly there (currently zero remote push devices). Central Mac delivery and account-wide controls are already updated; Windows-local historical cards still use the older policy.
+
 - [ ] Obtain and retain the Windows-local `host-acceptance.mjs verify` output confirming `writeProof: true`; the panel Write success is already recorded.
 - [ ] Retain a complete scoped office trace from before custom child creation through completion, with visual room/character confirmation. Previously captured partial live tool events and persisted completion do not prove the full visual sequence.
 - [ ] Finish native-handoff acceptance evidence: selected native process identity/exit, original Windows transcript preservation, other native jobs unchanged, and writable reconnect after handoff. Same-session NATIVE_IDLE_OK / HANDOFF_OK is already verified.

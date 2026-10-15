@@ -6,7 +6,7 @@ test('preferences suppress device pushes but retain panel history; persist secur
 test('expired subscriptions are removed while concurrently added devices are retained',async t=>{let release;const pending=new Promise(r=>release=r);const {manager}=fixture(t,async()=>{await pending;throw {statusCode:410};});manager.subscribe(subscription);const sending=manager.send(task,'İzin');manager.subscribe({...subscription,endpoint:'https://push.example/b'});release();await sending;assert.deepEqual(manager.subscriptions.map(s=>s.endpoint),['https://push.example/b']);});
 test('running and stopped do not flood notifications',async t=>{const {manager}=fixture(t);await manager.send({...task,status:'running'},'Başladı');await manager.send({...task,status:'stopped'},'Durdu');assert.equal(manager.state().items.length,0);});
 
-test('a second genuine permission episode inside a minute still reaches the user',async t=>{let sent=0;const {manager}=fixture(t,async()=>sent++);manager.subscribe(subscription);await manager.send(task,'İzin');await manager.send({...task,noticeId:'episode-2'},'İzin');assert.equal(sent,2);assert.equal(manager.state().items.length,2);});
+test('a second genuine permission episode inside a minute still reaches the user',async t=>{let sent=0;const {manager}=fixture(t,async()=>sent++);manager.subscribe(subscription);await manager.send(task,'İzin');manager.markRead(manager.items[0].id);await manager.send({...task,noticeId:'episode-2'},'İzin');assert.equal(sent,2);assert.equal(manager.state().items.length,1);assert.equal(manager.items[0].count,2);});
 test('server registration and delivery failures are exposed without endpoints or private keys',async t=>{const {manager}=fixture(t,async()=>{throw {statusCode:403};});manager.subscribe(subscription);assert.equal(manager.registered(subscription.endpoint),true);await manager.send(task,'İzin');assert.equal(manager.state().lastDelivery.failed,1);manager.unsubscribe(subscription.endpoint);assert.equal(manager.registered(subscription.endpoint),false);assert.ok(!JSON.stringify(manager.state()).includes(subscription.endpoint));});
 
 test('a lost VAPID key invalidates stale server subscriptions and asks devices to renew',async t=>{const {manager,storageDir}=fixture(t);manager.subscribe(subscription);writeFileSync(join(storageDir,'bibilen-vapid.json'),'broken JSON');const renewed=new PushManager({storageDir});assert.equal(renewed.registered(subscription.endpoint),false);assert.match(renewed.state().warning,/yeniden/);renewed.subscribe(subscription);assert.equal(renewed.state().warning,null);});
@@ -33,3 +33,22 @@ test('project mute suppresses only that project while preserving all panel recor
  assert.throws(()=>manager.updateDelivery({mutedWorkspaces:['../bad']}));
 });
 test('task time alerts have readable content and retain an exact task link',async t=>{const {manager}=fixture(t);await manager.send({...task,status:'alert',source:'task-limit',runMinutes:15},'Süre');const item=manager.state().items[0];assert.equal(item.title,'Görev süre uyarısı');assert.match(item.body,/15 dakikalık/);assert.equal(item.url,'/?view=tasks&task=task-1');assert.equal(item.body.includes('undefined'),false);});
+test('routine conversation replies are panel-only by default and do not inflate unread counts',async t=>{
+ const sent=[];const {manager,storageDir}=fixture(t,async(s,p)=>sent.push(JSON.parse(p)));manager.subscribe(subscription);
+ for(let i=0;i<50;i++)await manager.send({id:'chat',sessionId:'chat',status:'completed',title:'Konuşma',noticeId:'turn-'+i});
+ assert.equal(sent.length,0);assert.equal(manager.items.length,1);assert.equal(manager.items[0].read,true);assert.equal(manager.items[0].count,50);
+ const restored=new PushManager({storageDir,deliver:async(s,p)=>sent.push(JSON.parse(p))});await restored.send({id:'chat',sessionId:'chat',status:'completed',title:'Konuşma',noticeId:'turn-1'});assert.equal(restored.items[0].count,50);
+ await manager.send({id:'real-task',sessionId:'work',status:'completed',title:'Gerçek görev',noticeId:'done'});assert.equal(sent.length,1);
+ manager.updatePreferences({sessionReplies:true});await manager.send({id:'chat',sessionId:'chat',status:'completed',title:'Konuşma',noticeId:'turn-51'});assert.equal(sent.length,2);
+});
+test('burst permission signals merge without losing a later attention episode',async t=>{
+ const sent=[];const {manager}=fixture(t,async(s,p)=>sent.push(JSON.parse(p)));manager.subscribe(subscription);let at=Date.now();manager.now=()=>at;
+ const permission={id:'guard-a',sessionId:'chat',status:'waiting',title:'Onay',noticeId:'p1'};
+ await manager.send(permission);at+=1000;await manager.send({...permission,id:'guard-b',noticeId:'p2'});at+=1000;await manager.send({...permission,id:'chat',noticeId:'p3'});
+ assert.equal(sent.length,1);assert.equal(manager.items.length,1);assert.equal(manager.items[0].count,3);
+ manager.resolveSession('chat');at+=1000;await manager.send({...permission,noticeId:'new-episode'});assert.equal(sent.length,2);assert.equal(sent[0].tag,sent[1].tag);assert.equal(sent[1].renotify,true);
+});
+test('legacy noisy reply history is backed up and compacted without unread badges',async t=>{
+ const {manager,storageDir}=fixture(t);const records=Array.from({length:10},(_,i)=>({id:'old-'+i,sessionId:'chat',taskId:null,kind:'completed',noticeId:'e'+i,at:1000-i,read:false}));
+ writeFileSync(manager.noticePath,JSON.stringify({items:records}));const restored=new PushManager({storageDir});assert.equal(restored.items.length,1);assert.equal(restored.items[0].count,10);assert.equal(restored.items[0].read,true);assert.equal(statSync(join(storageDir,'notification-history-before-smart-v2.json')).mode&0o777,0o600);
+});
