@@ -1,3 +1,4 @@
+import {paintBibilenGarden,renderBibilenPond} from './bibilenGarden.js';
 import {botanicalAtlasReady} from './botanicalAtlas.js';
 import {paintPlazaCourtyard,renderCourtyardWater} from './plazaCourtyard.js';
 import {paintPlazaInterior} from './modernPlaza.js';
@@ -7,11 +8,11 @@ import {BUILDING,COZY_ROOMS,COZY_COLS,COZY_ROWS,ROOM_RUGS,ROOM_WINDOWS,GARDEN_PA
 import {getCatalogEntry} from '../office/layout/furnitureCatalog.js';
 import {getCachedSprite} from '../office/sprites/spriteCache.js';
 
-let scenery:HTMLCanvasElement|null=null,lastReady=false,lastPlaza=false,lastBotanical=false;
-export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,zoom:number,plaza=false){
+let scenery:HTMLCanvasElement|null=null,lastReady=false,lastPlaza=false,lastBotanical=false,lastForest=false;
+export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,zoom:number,plaza=false,forest=false){
  const ready=Boolean(getCatalogEntry('BB_WALL_SINK')),botanical=botanicalAtlasReady();
- if(!scenery||ready!==lastReady||plaza!==lastPlaza||(plaza&&botanical!==lastBotanical)){
-  lastPlaza=plaza;lastBotanical=botanical;
+ if(!scenery||ready!==lastReady||plaza!==lastPlaza||forest!==lastForest||(plaza&&botanical!==lastBotanical)){
+  lastPlaza=plaza;lastBotanical=botanical;lastForest=forest;
   lastReady=ready;scenery=document.createElement('canvas');scenery.width=COZY_COLS*16;scenery.height=COZY_ROWS*16;
   const c=scenery.getContext('2d')!;c.imageSmoothingEnabled=false;
   const rect=(x:number,y:number,w:number,h:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -215,7 +216,7 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
    rect((at-1)*16,55*16+13,48,6,'#ad9977');rect((at-1)*16+2,55*16+19,44,4,'#d9c4a0');
   }
   rect(45*16+5,56*16,38,10,'#7b6849');rect(45*16+7,56*16+2,34,1,'#c4ab78');
-  if(plaza){paintPlazaInterior(c);paintPlazaCourtyard(c);}
+  if(plaza){paintPlazaInterior(c);paintPlazaCourtyard(c);}else if(forest)paintBibilenGarden(c);
  }
  ctx.imageSmoothingEnabled=false;ctx.drawImage(scenery,x,y,scenery.width*zoom,scenery.height*zoom);
  // Draw room names at display resolution rather than enlarging a 7px bitmap.
@@ -239,7 +240,8 @@ export function renderCozyScene(ctx:CanvasRenderingContext2D,x:number,y:number,z
  }
  ctx.restore();
  if(plaza){renderCourtyardWater(ctx,x,y,zoom,motionEnabled()?performance.now()/1000:0);}
- if(motionEnabled()&&!plaza){
+ if(forest)renderBibilenPond(ctx,x,y,zoom,motionEnabled()?performance.now()/1000:0);
+ if(motionEnabled()&&!plaza&&!forest){
   const time=performance.now()/1000;
   ctx.save();ctx.translate(x,y);ctx.scale(zoom,zoom);
   // Small surface highlights remain inside the pond; no walkability changes.

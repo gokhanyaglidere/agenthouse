@@ -1,3 +1,4 @@
+import {isBibilenWorkspace} from '../../bibilen/bibilenGarden.js';
 import {courtyardFurniture} from '../../bibilen/plazaCourtyard.js';
 import {isOneLineWorkspace,plazaFurniture} from '../../bibilen/modernPlaza.js';
 import {workspaceId} from '../../bibilen/workspace.js';
@@ -930,7 +931,7 @@ export function renderFrame(
   // Draw tiles (floor + wall base color)
   renderTileGrid(ctx, tileMap, offsetX, offsetY, zoom, tileColors, layoutCols);
   const cozy=cols===COZY_COLS&&rows===COZY_ROWS&&areas?.some(a=>a.label==='Gökhan · CEO');
-  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId));if(!isOneLineWorkspace(workspaceId))renderCozyLighting(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters,isOneLineWorkspace(workspaceId));}
+  if(cozy){renderCozyScene(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId),isBibilenWorkspace(workspaceId));if(!isOneLineWorkspace(workspaceId))renderCozyLighting(ctx,offsetX,offsetY,zoom);renderDoors(ctx,offsetX,offsetY,zoom,characters,isOneLineWorkspace(workspaceId));}
 
   // Carpet layer (above floor, below seat indicators / furniture / characters)
   if (carpetTiles && carpetTiles.length > 0) {
@@ -975,7 +976,7 @@ export function renderFrame(
     pets ?? [],
   );
 
-  if(cozy)renderWildlife(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId));
+  if(cozy)renderWildlife(ctx,offsetX,offsetY,zoom,isOneLineWorkspace(workspaceId),isBibilenWorkspace(workspaceId));
 
   // Speech bubbles (always on top of characters)
   renderBubbles(ctx, characters, offsetX, offsetY, zoom);
